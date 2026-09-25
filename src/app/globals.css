@@ -24,3 +24,47 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Force zero page margin to eliminate browser headers & footers (URL, title, timestamp) */
+@page {
+  margin: 0;
+  size: A4 portrait;
+}
+
+/* Print optimization styles for clean PDF export */
+@media print {
+  html,
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Hide entire UI: navbar, wizard, buttons, modals */
+  .no-print {
+    display: none !important;
+  }
+
+  /* Center clean document with internal padding instead of browser page margin */
+  #resume-preview {
+    box-shadow: none !important;
+    border: none !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-height: auto !important;
+    padding: 16mm 18mm !important;
+    margin: 0 auto !important;
+    background: #ffffff !important;
+    page-break-inside: auto;
+  }
+
+  /* Prevent awkward page cutoffs inside individual sections */
+  section,
+  header {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+}
