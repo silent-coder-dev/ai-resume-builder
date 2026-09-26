@@ -6,10 +6,12 @@ import { FormWizard } from '@/components/wizard/FormWizard';
 import { UploadResumeModal } from '@/components/wizard/UploadResumeModal';
 import { ResumeSessionModal } from '@/components/wizard/ResumeSessionModal';
 import { JobMatcherModal } from '@/components/wizard/JobMatcherModal';
+import { SectionReorderModal } from '@/components/wizard/SectionReorderModal';
 import { calculateAtsScore } from '@/utils/atsScore';
 import { AtsScoreMeter } from '@/components/ui/AtsScoreMeter';
 import { ResumeCanvasContainer } from '@/components/preview/ResumeCanvasContainer';
 import { Footer } from '@/components/layout/Footer';
+import { printResumeDocument } from '@/utils/exportPdf';
 
 import {
   BlankCanvasTemplate,
@@ -53,6 +55,7 @@ import {
   Edit3,
   X,
   Target,
+  ArrowUpDown,
 } from 'lucide-react';
 
 const COLOR_OPTIONS = [
@@ -99,6 +102,7 @@ export default function Home() {
   const [activeTemplate, setActiveTemplate] = useState('modern');
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [isJobMatcherOpen, setIsJobMatcherOpen] = useState(false);
+  const [isReorderOpen, setIsReorderOpen] = useState(false);
   const [mobileTab, setMobileTab] = useState<'editor' | 'preview'>('editor');
 
   // Desktop Dropdown States
@@ -106,7 +110,7 @@ export default function Home() {
   const [colorOpen, setColorOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
 
-  // Dedicated Mobile Bottom-Sheet Modals
+  // Mobile Bottom-Sheet States
   const [mobileTemplateSheet, setMobileTemplateSheet] = useState(false);
   const [mobileProfileSheet, setMobileProfileSheet] = useState(false);
 
@@ -125,6 +129,10 @@ export default function Home() {
   }, []);
 
   const { score, tips } = calculateAtsScore(resumeData);
+
+  const handleDownloadPdf = () => {
+    printResumeDocument('printable-resume-canvas', resumeData.personalInfo.fullName);
+  };
 
   const renderActiveTemplate = () => {
     switch (activeTemplate) {
@@ -162,6 +170,9 @@ export default function Home() {
       {/* Target JD Matcher & Gap Analysis Modal */}
       <JobMatcherModal isOpen={isJobMatcherOpen} onClose={() => setIsJobMatcherOpen(false)} />
 
+      {/* Section Reorder Modal */}
+      <SectionReorderModal isOpen={isReorderOpen} onClose={() => setIsReorderOpen(false)} />
+
       {/* Returning User Session Modal */}
       <ResumeSessionModal />
 
@@ -191,6 +202,16 @@ export default function Home() {
           {/* Desktop Controls (>= 1024px) */}
           <div className="hidden lg:flex items-center gap-2">
             <AtsScoreMeter score={score} tips={tips} />
+
+            {/* Reorder Sections Button */}
+            <button
+              type="button"
+              onClick={() => setIsReorderOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-semibold shadow-2xs transition cursor-pointer"
+            >
+              <ArrowUpDown className="w-3.5 h-3.5 text-indigo-600" />
+              <span>Reorder</span>
+            </button>
 
             {/* Match JD Button */}
             <button
@@ -326,10 +347,10 @@ export default function Home() {
               <span>Upload</span>
             </button>
 
-            {/* Download PDF Button */}
+            {/* Stable Native PDF Download Button */}
             <button
               type="button"
-              onClick={() => window.print()}
+              onClick={handleDownloadPdf}
               className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-slate-950 text-white rounded-xl text-xs font-semibold hover:bg-slate-800 transition shadow-xs cursor-pointer"
             >
               <Download className="w-3.5 h-3.5" />
@@ -337,11 +358,21 @@ export default function Home() {
             </button>
           </div>
 
-          {/* Mobile & Tablet Header Controls (< 1024px) */}
+          {/* Mobile Header Controls (< 1024px) */}
           <div className="flex lg:hidden items-center gap-1.5">
             <AtsScoreMeter score={score} tips={tips} />
 
-            {/* Mobile Match JD Button */}
+            {/* Reorder Button Mobile */}
+            <button
+              type="button"
+              onClick={() => setIsReorderOpen(true)}
+              className="p-2 border border-slate-200 bg-white text-slate-700 rounded-xl hover:bg-slate-50 transition cursor-pointer"
+              title="Reorder Sections"
+            >
+              <ArrowUpDown className="w-4 h-4 text-indigo-600" />
+            </button>
+
+            {/* Match JD */}
             <button
               type="button"
               onClick={() => setIsJobMatcherOpen(true)}
@@ -351,7 +382,7 @@ export default function Home() {
               <Target className="w-4 h-4 text-indigo-600" />
             </button>
 
-            {/* Mobile Upload Button */}
+            {/* Upload */}
             <button
               type="button"
               onClick={() => setIsUploadOpen(true)}
@@ -361,10 +392,10 @@ export default function Home() {
               <Upload className="w-4 h-4 text-blue-600" />
             </button>
 
-            {/* Mobile Download PDF */}
+            {/* Mobile Download Button */}
             <button
               type="button"
-              onClick={() => window.print()}
+              onClick={handleDownloadPdf}
               className="flex items-center gap-1 px-3 py-2 bg-slate-950 text-white rounded-xl text-xs font-bold hover:bg-slate-800 shadow-xs cursor-pointer"
             >
               <Download className="w-3.5 h-3.5" />
@@ -373,7 +404,7 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Mobile Sub-Toolbar (< 1024px): Direct Bottom Sheet Triggers */}
+        {/* Mobile Sub-Toolbar */}
         <div className="flex lg:hidden items-center justify-between gap-1.5 mt-2.5 pt-2 border-t border-slate-100 overflow-x-auto scrollbar-none">
           <button
             type="button"
@@ -415,7 +446,7 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Mobile Tab Switcher (< 1024px) */}
+      {/* Mobile Tab Switcher */}
       <div className="no-print lg:hidden px-4 pt-3 pb-2 sticky top-[88px] z-30 bg-slate-100/95 backdrop-blur-sm">
         <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-200/90 rounded-xl shadow-inner">
           <button
@@ -469,7 +500,7 @@ export default function Home() {
         </div>
       </main>
 
-      {/* Branded Footer */}
+      {/* Footer */}
       <Footer />
 
       {/* Mobile Template Sheet Modal */}

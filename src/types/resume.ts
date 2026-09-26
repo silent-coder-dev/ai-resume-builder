@@ -1,18 +1,16 @@
-export type SkillLevel = 'Beginner' | 'Intermediate' | 'Professional';
-
 export interface SocialLink {
   id: string;
   platform: string;
   url: string;
 }
 
-export interface SkillItem {
+export interface Skill {
   id: string;
   name: string;
-  level: SkillLevel;
+  level?: 'Beginner' | 'Intermediate' | 'Professional';
 }
 
-export interface ExperienceItem {
+export interface Experience {
   id: string;
   company: string;
   role: string;
@@ -20,61 +18,70 @@ export interface ExperienceItem {
   endDate: string;
   isCurrent: boolean;
   rawDetails: string;
-  enhancedBullets: string[];
+  enhancedBullets?: string[];
 }
 
-export interface EducationItem {
+export interface Education {
   id: string;
   institution: string;
   degree: string;
-  fieldOfStudy: string;
+  fieldOfStudy?: string;
   graduationYear: string;
   scoreOrGpa?: string;
 }
 
-export interface ProjectItem {
+export interface Project {
   id: string;
   title: string;
   techStack: string[];
   description: string;
-  liveUrl?: string;
 }
 
-export interface CertificationItem {
+export interface Certification {
   id: string;
   name: string;
   issuer: string;
-  issueDate?: string;
-  url?: string;
 }
 
-export interface AchievementItem {
+export interface Achievement {
   id: string;
   title: string;
   description: string;
-  date?: string;
 }
 
 export interface PersonalInfo {
   fullName: string;
+  targetRole: string;
   email: string;
   phone: string;
   location: string;
-  targetRole: string;
-  yearsOfExperience: string;
-  experienceField: string;
   summary: string;
-  photoUrl?: string;
-  showPhoto?: boolean;
+  yearsOfExperience?: number;
+  experienceField?: string;
 }
 
 export interface ResumeData {
   personalInfo: PersonalInfo;
-  links: SocialLink[];
-  skills: SkillItem[];
-  experiences: ExperienceItem[];
-  education: EducationItem[];
-  projects: ProjectItem[];
-  certifications?: CertificationItem[];
-  achievements?: AchievementItem[];
+  skills: Skill[];
+  experiences: Experience[];
+  projects: Project[];
+  education: Education[];
+  certifications?: Certification[];
+  achievements?: Achievement[];
+  links?: SocialLink[];
+}
+
+export type SectionKey =
+  | 'summary'
+  | 'skills'
+  | 'experience'
+  | 'projects'
+  | 'education'
+  | 'certifications'
+  | 'achievements';
+
+export interface SectionItem {
+  id: SectionKey;
+  label: string;
+  visible: boolean;
 }
