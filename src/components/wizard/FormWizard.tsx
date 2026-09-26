@@ -15,6 +15,7 @@ import {
   Image as ImageIcon,
   Award,
   Trophy,
+  Eye,
 } from 'lucide-react';
 
 const STEPS = [
@@ -26,7 +27,11 @@ const STEPS = [
   'Certifications & Honors (Optional)',
 ];
 
-export const FormWizard: React.FC = () => {
+interface FormWizardProps {
+  onSwitchToPreview?: () => void;
+}
+
+export const FormWizard: React.FC<FormWizardProps> = ({ onSwitchToPreview }) => {
   const {
     resumeData,
     activeStep,
@@ -149,50 +154,53 @@ export const FormWizard: React.FC = () => {
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-slate-200/90 p-5 sm:p-6 flex flex-col h-full overflow-hidden">
-      {errorMessage && (
-        <div className="mb-4 p-2.5 text-xs text-red-600 bg-red-50 border border-red-200 rounded-xl flex items-center justify-between">
-          <span>{errorMessage}</span>
-          <button onClick={() => setErrorMessage(null)} className="font-bold ml-2">✕</button>
-        </div>
-      )}
+    <div className="bg-white rounded-2xl shadow-sm border border-slate-200/90 flex flex-col h-auto lg:h-full relative overflow-hidden">
+      {/* Scrollable Form Body */}
+      <div className="p-4 sm:p-6 flex-1 overflow-y-auto pb-28 lg:pb-6 space-y-4 touch-pan-y">
+        {errorMessage && (
+          <div className="p-2.5 text-xs text-red-600 bg-red-50 border border-red-200 rounded-xl flex items-center justify-between">
+            <span>{errorMessage}</span>
+            <button onClick={() => setErrorMessage(null)} className="font-bold ml-2">✕</button>
+          </div>
+        )}
 
-      {/* Step Indicators with Sliding Indicator */}
-      <nav aria-label="Resume wizard steps" className="relative flex items-center justify-between mb-5 pb-2 border-b border-slate-100 shrink-0 overflow-x-auto gap-2">
-        {STEPS.map((step, idx) => (
-          <button
-            key={step}
-            type="button"
-            onClick={() => setActiveStep(idx)}
-            className="relative px-3 py-1.5 text-xs font-semibold transition-colors cursor-pointer shrink-0 rounded-lg flex items-center gap-1.5"
-          >
-            {activeStep === idx && (
-              <motion.div
-                layoutId="active-step-pill"
-                className="absolute inset-0 bg-blue-50 border border-blue-200/80 rounded-lg"
-                transition={{ type: 'spring', stiffness: 380, damping: 30 }}
-              />
-            )}
-            <span
-              className={`relative z-10 w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold ${
-                activeStep === idx ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-600'
-              }`}
+        {/* Step Indicators with Touch Scroll */}
+        <nav
+          aria-label="Resume wizard steps"
+          className="relative flex items-center justify-between pb-3 border-b border-slate-100 overflow-x-auto gap-2 touch-pan-x scrollbar-none"
+        >
+          {STEPS.map((step, idx) => (
+            <button
+              key={step}
+              type="button"
+              onClick={() => setActiveStep(idx)}
+              className="relative px-3 py-1.5 text-xs font-semibold transition-colors cursor-pointer shrink-0 rounded-lg flex items-center gap-1.5"
             >
-              {idx + 1}
-            </span>
-            <span
-              className={`relative z-10 text-[11px] font-medium ${
-                activeStep === idx ? 'text-blue-700 font-semibold' : 'text-slate-500 hover:text-slate-700'
-              }`}
-            >
-              {step.split(' ')[0]}
-            </span>
-          </button>
-        ))}
-      </nav>
+              {activeStep === idx && (
+                <motion.div
+                  layoutId="active-step-pill"
+                  className="absolute inset-0 bg-blue-50 border border-blue-200/80 rounded-lg"
+                  transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                />
+              )}
+              <span
+                className={`relative z-10 w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold ${
+                  activeStep === idx ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-600'
+                }`}
+              >
+                {idx + 1}
+              </span>
+              <span
+                className={`relative z-10 text-[11px] font-medium ${
+                  activeStep === idx ? 'text-blue-700 font-semibold' : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                {step.split(' ')[0]}
+              </span>
+            </button>
+          ))}
+        </nav>
 
-      {/* Form Content */}
-      <div className="flex-1 overflow-y-auto pr-1 space-y-4">
         {/* STEP 0: TARGET & INFO */}
         {activeStep === 0 && (
           <div className="space-y-4">
@@ -252,7 +260,7 @@ export const FormWizard: React.FC = () => {
                   placeholder="e.g. Software Engineer"
                   value={resumeData.personalInfo.targetRole}
                   onChange={(e) => updatePersonalInfo('targetRole', e.target.value)}
-                  className="w-full text-xs px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-slate-800"
+                  className="w-full text-base sm:text-xs px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-slate-800 bg-white"
                 />
               </div>
 
@@ -263,7 +271,7 @@ export const FormWizard: React.FC = () => {
                 <select
                   value={resumeData.personalInfo.yearsOfExperience}
                   onChange={(e) => updatePersonalInfo('yearsOfExperience', e.target.value)}
-                  className="w-full text-xs px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-slate-800"
+                  className="w-full text-base sm:text-xs px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-slate-800"
                 >
                   <option value="0 (Fresher / Entry Level)">0 (Fresher / Entry Level)</option>
                   <option value="1-2 years">1-2 years</option>
@@ -279,10 +287,10 @@ export const FormWizard: React.FC = () => {
               </label>
               <input
                 type="text"
-                placeholder="e.g. Backend Development, Distributed Systems"
+                placeholder="e.g. Backend Development, Cloud Systems"
                 value={resumeData.personalInfo.experienceField}
                 onChange={(e) => updatePersonalInfo('experienceField', e.target.value)}
-                className="w-full text-xs px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-slate-800"
+                className="w-full text-base sm:text-xs px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-slate-800 bg-white"
               />
             </div>
 
@@ -293,7 +301,7 @@ export const FormWizard: React.FC = () => {
                   type="text"
                   value={resumeData.personalInfo.fullName}
                   onChange={(e) => updatePersonalInfo('fullName', e.target.value)}
-                  className="w-full text-xs px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-slate-800"
+                  className="w-full text-base sm:text-xs px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-slate-800 bg-white"
                 />
               </div>
               <div>
@@ -302,7 +310,7 @@ export const FormWizard: React.FC = () => {
                   type="email"
                   value={resumeData.personalInfo.email}
                   onChange={(e) => updatePersonalInfo('email', e.target.value)}
-                  className="w-full text-xs px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-slate-800"
+                  className="w-full text-base sm:text-xs px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-slate-800 bg-white"
                 />
               </div>
             </div>
@@ -314,7 +322,7 @@ export const FormWizard: React.FC = () => {
                   type="text"
                   value={resumeData.personalInfo.phone}
                   onChange={(e) => updatePersonalInfo('phone', e.target.value)}
-                  className="w-full text-xs px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-slate-800"
+                  className="w-full text-base sm:text-xs px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-slate-800 bg-white"
                 />
               </div>
               <div>
@@ -323,7 +331,7 @@ export const FormWizard: React.FC = () => {
                   type="text"
                   value={resumeData.personalInfo.location}
                   onChange={(e) => updatePersonalInfo('location', e.target.value)}
-                  className="w-full text-xs px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-slate-800"
+                  className="w-full text-base sm:text-xs px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-slate-800 bg-white"
                 />
               </div>
             </div>
@@ -351,7 +359,7 @@ export const FormWizard: React.FC = () => {
                 rows={4}
                 value={resumeData.personalInfo.summary}
                 onChange={(e) => updatePersonalInfo('summary', e.target.value)}
-                className="w-full text-xs p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-slate-800"
+                className="w-full text-base sm:text-xs p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-slate-800 bg-white"
               />
             </div>
           </div>
@@ -370,12 +378,12 @@ export const FormWizard: React.FC = () => {
                 placeholder="Skill (e.g. React, Java, Docker)"
                 value={newSkillName}
                 onChange={(e) => setNewSkillName(e.target.value)}
-                className="flex-1 text-xs px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-slate-800"
+                className="flex-1 text-base sm:text-xs px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-slate-800 bg-white"
               />
               <select
                 value={newSkillLevel}
                 onChange={(e) => setNewSkillLevel(e.target.value as SkillLevel)}
-                className="text-xs px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white font-medium text-slate-800"
+                className="text-xs px-2 sm:px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white font-medium text-slate-800"
               >
                 <option value="Beginner">Beginner</option>
                 <option value="Intermediate">Intermediate</option>
@@ -383,7 +391,7 @@ export const FormWizard: React.FC = () => {
               </select>
               <button
                 type="submit"
-                className="px-4 py-2 bg-slate-900 text-white rounded-lg text-xs font-semibold flex items-center gap-1 hover:bg-slate-800 shrink-0 cursor-pointer"
+                className="px-3 sm:px-4 py-2 bg-slate-900 text-white rounded-lg text-xs font-semibold flex items-center gap-1 hover:bg-slate-800 shrink-0 cursor-pointer"
               >
                 <Plus className="w-4 h-4" /> Add
               </button>
@@ -420,7 +428,7 @@ export const FormWizard: React.FC = () => {
               <select
                 value={newLinkPlatform}
                 onChange={(e) => setNewLinkPlatform(e.target.value)}
-                className="text-xs px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white font-medium w-36 text-slate-800 shrink-0"
+                className="text-xs px-2 sm:px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white font-medium w-28 sm:w-32 text-slate-800 shrink-0"
               >
                 <option value="GitHub">GitHub</option>
                 <option value="LinkedIn">LinkedIn</option>
@@ -433,11 +441,11 @@ export const FormWizard: React.FC = () => {
                 placeholder="https://..."
                 value={newLinkUrl}
                 onChange={(e) => setNewLinkUrl(e.target.value)}
-                className="flex-1 text-xs px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-slate-800"
+                className="flex-1 text-base sm:text-xs px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-slate-800 bg-white"
               />
               <button
                 type="submit"
-                className="px-4 py-2 bg-slate-900 text-white rounded-lg text-xs font-semibold flex items-center gap-1 hover:bg-slate-800 shrink-0 cursor-pointer"
+                className="px-3 sm:px-4 py-2 bg-slate-900 text-white rounded-lg text-xs font-semibold flex items-center gap-1 hover:bg-slate-800 shrink-0 cursor-pointer"
               >
                 <Plus className="w-4 h-4" /> Add
               </button>
@@ -449,14 +457,14 @@ export const FormWizard: React.FC = () => {
                   key={link.id}
                   className="flex items-center justify-between p-2.5 bg-slate-50 border rounded-lg text-xs"
                 >
-                  <div>
+                  <div className="truncate mr-2">
                     <span className="font-semibold text-slate-800 mr-2">{link.platform}:</span>
                     <span className="text-blue-600 font-mono text-[11px]">{link.url}</span>
                   </div>
                   <button
                     type="button"
                     onClick={() => removeLink(link.id)}
-                    className="text-slate-400 hover:text-red-500 cursor-pointer"
+                    className="text-slate-400 hover:text-red-500 cursor-pointer shrink-0"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
@@ -510,7 +518,7 @@ export const FormWizard: React.FC = () => {
                       type="text"
                       value={exp.company}
                       onChange={(e) => updateExperience(exp.id, { company: e.target.value })}
-                      className="w-full text-xs px-2.5 py-1.5 border rounded-md bg-white outline-none text-slate-800"
+                      className="w-full text-base sm:text-xs px-2.5 py-1.5 border rounded-md bg-white outline-none text-slate-800"
                     />
                   </div>
                   <div>
@@ -519,7 +527,7 @@ export const FormWizard: React.FC = () => {
                       type="text"
                       value={exp.role}
                       onChange={(e) => updateExperience(exp.id, { role: e.target.value })}
-                      className="w-full text-xs px-2.5 py-1.5 border rounded-md bg-white outline-none text-slate-800"
+                      className="w-full text-base sm:text-xs px-2.5 py-1.5 border rounded-md bg-white outline-none text-slate-800"
                     />
                   </div>
                 </div>
@@ -531,7 +539,7 @@ export const FormWizard: React.FC = () => {
                       type="text"
                       value={exp.startDate}
                       onChange={(e) => updateExperience(exp.id, { startDate: e.target.value })}
-                      className="w-full text-xs px-2.5 py-1.5 border rounded-md bg-white outline-none text-slate-800"
+                      className="w-full text-base sm:text-xs px-2.5 py-1.5 border rounded-md bg-white outline-none text-slate-800"
                     />
                   </div>
                   <div>
@@ -540,7 +548,7 @@ export const FormWizard: React.FC = () => {
                       type="text"
                       value={exp.endDate}
                       onChange={(e) => updateExperience(exp.id, { endDate: e.target.value })}
-                      className="w-full text-xs px-2.5 py-1.5 border rounded-md bg-white outline-none text-slate-800"
+                      className="w-full text-base sm:text-xs px-2.5 py-1.5 border rounded-md bg-white outline-none text-slate-800"
                     />
                   </div>
                 </div>
@@ -568,7 +576,7 @@ export const FormWizard: React.FC = () => {
                     rows={2}
                     value={exp.rawDetails}
                     onChange={(e) => updateExperience(exp.id, { rawDetails: e.target.value })}
-                    className="w-full text-xs p-2.5 border rounded-md bg-white outline-none text-slate-800"
+                    className="w-full text-base sm:text-xs p-2.5 border rounded-md bg-white outline-none text-slate-800"
                   />
                 </div>
 
@@ -624,20 +632,20 @@ export const FormWizard: React.FC = () => {
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
-                  <div className="grid grid-cols-2 gap-2 pr-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pr-6">
                     <input
                       type="text"
                       placeholder="Institution"
                       value={edu.institution}
                       onChange={(e) => updateEducation(edu.id, { institution: e.target.value })}
-                      className="text-xs px-2 py-1.5 border rounded bg-white outline-none text-slate-800"
+                      className="text-base sm:text-xs px-2 py-1.5 border rounded bg-white outline-none text-slate-800"
                     />
                     <input
                       type="text"
                       placeholder="Degree & Major"
                       value={edu.degree}
                       onChange={(e) => updateEducation(edu.id, { degree: e.target.value })}
-                      className="text-xs px-2 py-1.5 border rounded bg-white outline-none text-slate-800"
+                      className="text-base sm:text-xs px-2 py-1.5 border rounded bg-white outline-none text-slate-800"
                     />
                   </div>
                 </div>
@@ -680,14 +688,14 @@ export const FormWizard: React.FC = () => {
                       placeholder="Project Title"
                       value={proj.title}
                       onChange={(e) => updateProject(proj.id, { title: e.target.value })}
-                      className="text-xs px-2 py-1.5 border rounded bg-white outline-none w-full font-semibold mb-2 text-slate-800"
+                      className="text-base sm:text-xs px-2 py-1.5 border rounded bg-white outline-none w-full font-semibold mb-2 text-slate-800"
                     />
                     <textarea
                       rows={2}
                       placeholder="Project description..."
                       value={proj.description}
                       onChange={(e) => updateProject(proj.id, { description: e.target.value })}
-                      className="text-xs p-2 border rounded bg-white outline-none w-full text-slate-800"
+                      className="text-base sm:text-xs p-2 border rounded bg-white outline-none w-full text-slate-800"
                     />
                   </div>
                 </div>
@@ -696,10 +704,9 @@ export const FormWizard: React.FC = () => {
           </div>
         )}
 
-        {/* STEP 5: CERTIFICATIONS & HONORS (OPTIONAL) */}
+        {/* STEP 5: CERTIFICATIONS & HONORS */}
         {activeStep === 5 && (
           <div className="space-y-6">
-            {/* Certifications */}
             <div>
               <div className="flex justify-between items-center mb-2">
                 <div>
@@ -744,21 +751,20 @@ export const FormWizard: React.FC = () => {
                       placeholder="Certificate Name (e.g. AWS Cloud Practitioner)"
                       value={cert.name}
                       onChange={(e) => updateCertification(cert.id, { name: e.target.value })}
-                      className="text-xs px-2 py-1.5 border rounded bg-white outline-none text-slate-800"
+                      className="text-base sm:text-xs px-2 py-1.5 border rounded bg-white outline-none text-slate-800"
                     />
                     <input
                       type="text"
                       placeholder="Issuer (e.g. Amazon Web Services / IIT Bombay)"
                       value={cert.issuer}
                       onChange={(e) => updateCertification(cert.id, { issuer: e.target.value })}
-                      className="text-xs px-2 py-1.5 border rounded bg-white outline-none text-slate-800"
+                      className="text-base sm:text-xs px-2 py-1.5 border rounded bg-white outline-none text-slate-800"
                     />
                   </div>
                 </div>
               ))}
             </div>
 
-            {/* Achievements */}
             <div>
               <div className="flex justify-between items-center mb-2">
                 <div>
@@ -803,14 +809,14 @@ export const FormWizard: React.FC = () => {
                       placeholder="Award Title (e.g. 1st Place National Hackathon)"
                       value={ach.title}
                       onChange={(e) => updateAchievement(ach.id, { title: e.target.value })}
-                      className="text-xs px-2 py-1.5 border rounded bg-white outline-none w-full font-semibold text-slate-800"
+                      className="text-base sm:text-xs px-2 py-1.5 border rounded bg-white outline-none w-full font-semibold text-slate-800"
                     />
                     <textarea
                       rows={2}
                       placeholder="Brief note or impact..."
                       value={ach.description}
                       onChange={(e) => updateAchievement(ach.id, { description: e.target.value })}
-                      className="text-xs p-2 border rounded bg-white outline-none w-full text-slate-800"
+                      className="text-base sm:text-xs p-2 border rounded bg-white outline-none w-full text-slate-800"
                     />
                   </div>
                 </div>
@@ -820,25 +826,54 @@ export const FormWizard: React.FC = () => {
         )}
       </div>
 
-      {/* Navigation Footer */}
-      <div className="flex justify-between items-center pt-4 mt-4 border-t border-slate-100 shrink-0">
+      {/* Persistent Bottom Bar (Back / Next / View Preview) */}
+      <div className="fixed lg:static bottom-0 left-0 right-0 z-20 bg-white/95 backdrop-blur-md lg:bg-white border-t border-slate-200/90 px-4 py-3 sm:px-6 flex justify-between items-center shadow-lg lg:shadow-none">
         <button
           type="button"
           disabled={activeStep === 0}
           onClick={() => setActiveStep(Math.max(0, activeStep - 1))}
-          className="px-4 py-2 border rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-30 flex items-center gap-1 cursor-pointer transition"
+          className="px-3.5 py-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-30 disabled:hover:bg-transparent flex items-center gap-1 cursor-pointer transition"
         >
           <ArrowLeft className="w-3.5 h-3.5" /> Back
         </button>
 
-        <button
-          type="button"
-          disabled={activeStep === STEPS.length - 1}
-          onClick={() => setActiveStep(Math.min(STEPS.length - 1, activeStep + 1))}
-          className="px-5 py-2 bg-blue-600 text-white rounded-xl text-xs font-semibold hover:bg-blue-700 disabled:opacity-30 flex items-center gap-1 shadow-sm cursor-pointer transition"
-        >
-          Next Step <ArrowRight className="w-3.5 h-3.5" />
-        </button>
+        <span className="text-[11px] font-semibold text-slate-400 hidden sm:inline">
+          Step {activeStep + 1} of {STEPS.length}
+        </span>
+
+        <div className="flex items-center gap-2">
+          {/* Quick Preview Button on mobile */}
+          {onSwitchToPreview && (
+            <button
+              type="button"
+              onClick={onSwitchToPreview}
+              className="lg:hidden px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold flex items-center gap-1 cursor-pointer transition"
+            >
+              <Eye className="w-3.5 h-3.5 text-blue-600" />
+              <span>Preview</span>
+            </button>
+          )}
+
+          {activeStep < STEPS.length - 1 ? (
+            <button
+              type="button"
+              onClick={() => setActiveStep(activeStep + 1)}
+              className="px-4 sm:px-5 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-700 flex items-center gap-1 shadow-sm cursor-pointer transition"
+            >
+              Next Step <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                if (onSwitchToPreview) onSwitchToPreview();
+              }}
+              className="px-4 sm:px-5 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold hover:bg-emerald-700 flex items-center gap-1 shadow-sm cursor-pointer transition"
+            >
+              Finish & View <CheckCircle2 className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
