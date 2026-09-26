@@ -1,92 +1,92 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import {
   ResumeData,
+  PersonalInfo,
   SkillItem,
   ExperienceItem,
   EducationItem,
   ProjectItem,
-  SocialLink,
   CertificationItem,
   AchievementItem,
+  SocialLink,
 } from '@/types/resume';
-import { initialResumeData } from '@/types/initialResumeData';
+import { emptyResumeData } from '@/types/initialResumeData';
 
-interface ResumeStore {
+interface ResumeState {
   resumeData: ResumeData;
   activeStep: number;
   selectedTemplate: string;
   accentColor: string;
 
-  // Global Hydration/Parser Action
-  setResumeData: (data: ResumeData) => void;
-
-  // Navigation
+  // Navigation & UI Setters
   setActiveStep: (step: number) => void;
-  setSelectedTemplate: (template: string) => void;
+  setSelectedTemplate: (templateId: string) => void;
   setAccentColor: (color: string) => void;
+  setResumeData: (data: ResumeData) => void;
+  resetToBlank: () => void;
 
   // Personal Info
-  updatePersonalInfo: (field: keyof ResumeData['personalInfo'], value: any) => void;
-
-  // Links
-  addLink: (link: SocialLink) => void;
-  removeLink: (id: string) => void;
+  updatePersonalInfo: <K extends keyof PersonalInfo>(field: K, value: PersonalInfo[K]) => void;
 
   // Skills
   addSkill: (skill: SkillItem) => void;
   removeSkill: (id: string) => void;
 
-  // Experiences
-  addExperience: (experience: ExperienceItem) => void;
+  // Links
+  addLink: (link: SocialLink) => void;
+  removeLink: (id: string) => void;
+
+  // Experience
+  addExperience: (exp: ExperienceItem) => void;
   removeExperience: (id: string) => void;
-  updateExperience: (id: string, updated: Partial<ExperienceItem>) => void;
+  updateExperience: (id: string, updates: Partial<ExperienceItem>) => void;
   setEnhancedBullets: (id: string, bullets: string[]) => void;
 
   // Education
   addEducation: (edu: EducationItem) => void;
   removeEducation: (id: string) => void;
-  updateEducation: (id: string, updated: Partial<EducationItem>) => void;
+  updateEducation: (id: string, updates: Partial<EducationItem>) => void;
 
   // Projects
-  addProject: (project: ProjectItem) => void;
+  addProject: (proj: ProjectItem) => void;
   removeProject: (id: string) => void;
-  updateProject: (id: string, updated: Partial<ProjectItem>) => void;
+  updateProject: (id: string, updates: Partial<ProjectItem>) => void;
 
-  // Certifications (Optional)
+  // Certifications
   addCertification: (cert: CertificationItem) => void;
   removeCertification: (id: string) => void;
-  updateCertification: (id: string, updated: Partial<CertificationItem>) => void;
+  updateCertification: (id: string, updates: Partial<CertificationItem>) => void;
 
-  // Achievements (Optional)
+  // Achievements
   addAchievement: (ach: AchievementItem) => void;
   removeAchievement: (id: string) => void;
-  updateAchievement: (id: string, updated: Partial<AchievementItem>) => void;
-
-  // Reset
-  resetToDefault: () => void;
+  updateAchievement: (id: string, updates: Partial<AchievementItem>) => void;
 }
 
-export const useResumeStore = create<ResumeStore>()(
+export const useResumeStore = create<ResumeState>()(
   persist(
     (set) => ({
-      resumeData: initialResumeData,
+      resumeData: emptyResumeData,
       activeStep: 0,
       selectedTemplate: 'modern',
       accentColor: '#2563eb',
 
-      setResumeData: (data) =>
-        set({
-          resumeData: {
-            ...data,
-            certifications: data.certifications || [],
-            achievements: data.achievements || [],
-          },
-        }),
-
       setActiveStep: (step) => set({ activeStep: step }),
-      setSelectedTemplate: (template) => set({ selectedTemplate: template }),
+      setSelectedTemplate: (templateId) => set({ selectedTemplate: templateId }),
       setAccentColor: (color) => set({ accentColor: color }),
+      setResumeData: (data) => set({ resumeData: data }),
+
+      // Reset store state and clear persistent local storage
+      resetToBlank: () => {
+        set({
+          resumeData: emptyResumeData,
+          activeStep: 0,
+        });
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('ai-resume-builder-store');
+        }
+      },
 
       updatePersonalInfo: (field, value) =>
         set((state) => ({
@@ -96,22 +96,6 @@ export const useResumeStore = create<ResumeStore>()(
               ...state.resumeData.personalInfo,
               [field]: value,
             },
-          },
-        })),
-
-      addLink: (link) =>
-        set((state) => ({
-          resumeData: {
-            ...state.resumeData,
-            links: [...state.resumeData.links, link],
-          },
-        })),
-
-      removeLink: (id) =>
-        set((state) => ({
-          resumeData: {
-            ...state.resumeData,
-            links: state.resumeData.links.filter((l) => l.id !== id),
           },
         })),
 
@@ -131,11 +115,27 @@ export const useResumeStore = create<ResumeStore>()(
           },
         })),
 
+      addLink: (link) =>
+        set((state) => ({
+          resumeData: {
+            ...state.resumeData,
+            links: [...state.resumeData.links, link],
+          },
+        })),
+
+      removeLink: (id) =>
+        set((state) => ({
+          resumeData: {
+            ...state.resumeData,
+            links: state.resumeData.links.filter((l) => l.id !== id),
+          },
+        })),
+
       addExperience: (exp) =>
         set((state) => ({
           resumeData: {
             ...state.resumeData,
-            experiences: [...state.resumeData.experiences, exp],
+            experiences: [exp, ...state.resumeData.experiences],
           },
         })),
 
@@ -147,12 +147,12 @@ export const useResumeStore = create<ResumeStore>()(
           },
         })),
 
-      updateExperience: (id, updated) =>
+      updateExperience: (id, updates) =>
         set((state) => ({
           resumeData: {
             ...state.resumeData,
             experiences: state.resumeData.experiences.map((e) =>
-              e.id === id ? { ...e, ...updated } : e
+              e.id === id ? { ...e, ...updates } : e
             ),
           },
         })),
@@ -179,16 +179,16 @@ export const useResumeStore = create<ResumeStore>()(
         set((state) => ({
           resumeData: {
             ...state.resumeData,
-            education: state.resumeData.education.filter((ed) => ed.id !== id),
+            education: state.resumeData.education.filter((e) => e.id !== id),
           },
         })),
 
-      updateEducation: (id, updated) =>
+      updateEducation: (id, updates) =>
         set((state) => ({
           resumeData: {
             ...state.resumeData,
-            education: state.resumeData.education.map((ed) =>
-              ed.id === id ? { ...ed, ...updated } : ed
+            education: state.resumeData.education.map((e) =>
+              e.id === id ? { ...e, ...updates } : e
             ),
           },
         })),
@@ -209,12 +209,12 @@ export const useResumeStore = create<ResumeStore>()(
           },
         })),
 
-      updateProject: (id, updated) =>
+      updateProject: (id, updates) =>
         set((state) => ({
           resumeData: {
             ...state.resumeData,
             projects: state.resumeData.projects.map((p) =>
-              p.id === id ? { ...p, ...updated } : p
+              p.id === id ? { ...p, ...updates } : p
             ),
           },
         })),
@@ -235,12 +235,12 @@ export const useResumeStore = create<ResumeStore>()(
           },
         })),
 
-      updateCertification: (id, updated) =>
+      updateCertification: (id, updates) =>
         set((state) => ({
           resumeData: {
             ...state.resumeData,
             certifications: (state.resumeData.certifications || []).map((c) =>
-              c.id === id ? { ...c, ...updated } : c
+              c.id === id ? { ...c, ...updates } : c
             ),
           },
         })),
@@ -261,24 +261,19 @@ export const useResumeStore = create<ResumeStore>()(
           },
         })),
 
-      updateAchievement: (id, updated) =>
+      updateAchievement: (id, updates) =>
         set((state) => ({
           resumeData: {
             ...state.resumeData,
             achievements: (state.resumeData.achievements || []).map((a) =>
-              a.id === id ? { ...a, ...updated } : a
+              a.id === id ? { ...a, ...updates } : a
             ),
           },
         })),
-
-      resetToDefault: () =>
-        set({
-          resumeData: initialResumeData,
-          activeStep: 0,
-        }),
     }),
     {
       name: 'ai-resume-builder-store',
+      storage: createJSONStorage(() => localStorage),
     }
   )
 );
