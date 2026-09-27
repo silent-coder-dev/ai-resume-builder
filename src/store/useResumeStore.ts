@@ -1,112 +1,195 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
-import { initialResumeData } from '@/types/initialResumeData';
-import { ResumeData, Skill, Experience, Education, Project, Certification, Achievement, SocialLink } from '@/types/resume';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import {
+  ResumeData,
+  SectionItem,
+  SectionKey,
+  SocialLink,
+  Skill,
+  Experience,
+  Project,
+  Education,
+  Certification,
+  Achievement,
+  PersonalInfo,
+} from '@/types/resume';
 
-export type SectionKey = 
-  | 'summary'
-  | 'skills'
-  | 'experience'
-  | 'projects'
-  | 'education'
-  | 'certifications'
-  | 'achievements';
+const initialResumeData: ResumeData = {
+  personalInfo: {
+    fullName: '',
+    targetRole: '',
+    email: '',
+    phone: '',
+    location: '',
+    summary: '',
+    yearsOfExperience: 0,
+    experienceField: '',
+  },
+  skills: [],
+  experiences: [],
+  projects: [],
+  education: [],
+  certifications: [],
+  achievements: [],
+  links: [],
+};
 
-export interface SectionItem {
-  id: SectionKey;
-  label: string;
-  visible: boolean;
-}
-
-export const DEFAULT_SECTION_ORDER: SectionItem[] = [
+const defaultSectionOrder: SectionItem[] = [
   { id: 'summary', label: 'Professional Summary', visible: true },
-  { id: 'skills', label: 'Technical & Core Skills', visible: true },
+  { id: 'skills', label: 'Skills & Competencies', visible: true },
   { id: 'experience', label: 'Work Experience', visible: true },
   { id: 'projects', label: 'Key Projects', visible: true },
   { id: 'education', label: 'Education', visible: true },
   { id: 'certifications', label: 'Certifications', visible: true },
-  { id: 'achievements', label: 'Key Achievements', visible: true },
+  { id: 'achievements', label: 'Achievements', visible: true },
 ];
 
-interface ResumeState {
+export interface ResumeState {
   resumeData: ResumeData;
+  activeTemplate: string;
   accentColor: string;
+  zoomLevel: number;
   sectionOrder: SectionItem[];
-  
-  // Actions
+
+  // Global Actions
   setResumeData: (data: ResumeData) => void;
+  setActiveTemplate: (templateId: string) => void;
   setAccentColor: (color: string) => void;
-  setSectionOrder: (newOrder: SectionItem[]) => void;
-  toggleSectionVisibility: (id: SectionKey) => void;
-  moveSection: (dragIndex: number, hoverIndex: number) => void;
+  setZoomLevel: (level: number) => void;
+  resetToBlank: () => void;
+
+  // Section Reorder & Visibility Actions
+  setSectionOrder: (order: SectionItem[]) => void;
+  reorderSections: (startIndex: number, endIndex: number) => void;
+  moveSection: (startIndex: number, endIndex: number) => void;
+  toggleSectionVisibility: (sectionId: SectionKey) => void;
   resetSectionOrder: () => void;
 
-  // Personal Info
-  updatePersonalInfo: (field: string, value: string) => void;
+  // Personal Info Actions
+  updatePersonalInfo: (field: keyof PersonalInfo, value: any) => void;
 
-  // Skills
-  addSkill: (skill: Skill) => void;
-  removeSkill: (id: string) => void;
-  updateSkill: (id: string, skill: Partial<Skill>) => void;
-
-  // Links
+  // Links Actions
   addLink: (link: SocialLink) => void;
   removeLink: (id: string) => void;
-  updateLink: (id: string, link: Partial<SocialLink>) => void;
+  updateLink: (id: string, updatedLink: Partial<SocialLink>) => void;
 
-  // Experience
+  // Skills Actions
+  addSkill: (skill: Skill) => void;
+  removeSkill: (id: string) => void;
+  updateSkill: (id: string, updatedSkill: Partial<Skill>) => void;
+
+  // Experience Actions
   addExperience: (exp: Experience) => void;
   removeExperience: (id: string) => void;
-  updateExperience: (id: string, exp: Partial<Experience>) => void;
+  updateExperience: (id: string, updatedExp: Partial<Experience>) => void;
 
-  // Education
-  addEducation: (edu: Education) => void;
-  removeEducation: (id: string) => void;
-  updateEducation: (id: string, edu: Partial<Education>) => void;
-
-  // Projects
+  // Project Actions
   addProject: (proj: Project) => void;
   removeProject: (id: string) => void;
-  updateProject: (id: string, proj: Partial<Project>) => void;
+  updateProject: (id: string, updatedProj: Partial<Project>) => void;
 
-  // Certifications
+  // Education Actions
+  addEducation: (edu: Education) => void;
+  removeEducation: (id: string) => void;
+  updateEducation: (id: string, updatedEdu: Partial<Education>) => void;
+
+  // Certification Actions
   addCertification: (cert: Certification) => void;
   removeCertification: (id: string) => void;
+  updateCertification: (id: string, updatedCert: Partial<Certification>) => void;
 
-  // Achievements
+  // Achievement Actions
   addAchievement: (ach: Achievement) => void;
   removeAchievement: (id: string) => void;
+  updateAchievement: (id: string, updatedAch: Partial<Achievement>) => void;
 }
 
 export const useResumeStore = create<ResumeState>()(
   persist(
     (set) => ({
       resumeData: initialResumeData,
+      activeTemplate: 'modern',
       accentColor: '#2563eb',
-      sectionOrder: DEFAULT_SECTION_ORDER,
+      zoomLevel: 1,
+      sectionOrder: defaultSectionOrder,
 
-      setResumeData: (data) => set({ resumeData: data }),
+      // Global Actions
+      setResumeData: (data) =>
+        set((state) => ({
+          resumeData: {
+            ...state.resumeData,
+            ...data,
+            personalInfo: {
+              ...state.resumeData.personalInfo,
+              ...(data.personalInfo || {}),
+            },
+            links: data.links || [],
+            skills: data.skills || [],
+            experiences: data.experiences || [],
+            projects: data.projects || [],
+            education: data.education || [],
+            certifications: data.certifications || [],
+            achievements: data.achievements || [],
+          },
+        })),
+
+      setActiveTemplate: (templateId) => set({ activeTemplate: templateId }),
       setAccentColor: (color) => set({ accentColor: color }),
-      
-      setSectionOrder: (newOrder) => set({ sectionOrder: newOrder }),
+      setZoomLevel: (level) => set({ zoomLevel: level }),
 
-      toggleSectionVisibility: (id) =>
+      resetToBlank: () =>
+        set({
+          resumeData: {
+            personalInfo: {
+              fullName: '',
+              targetRole: '',
+              email: '',
+              phone: '',
+              location: '',
+              summary: '',
+              yearsOfExperience: 0,
+              experienceField: '',
+            },
+            skills: [],
+            experiences: [],
+            projects: [],
+            education: [],
+            certifications: [],
+            achievements: [],
+            links: [],
+          },
+          sectionOrder: defaultSectionOrder,
+        }),
+
+      // Section Reorder & Visibility
+      setSectionOrder: (order) => set({ sectionOrder: order }),
+
+      reorderSections: (startIndex, endIndex) =>
+        set((state) => {
+          const result = Array.from(state.sectionOrder);
+          const [removed] = result.splice(startIndex, 1);
+          result.splice(endIndex, 0, removed);
+          return { sectionOrder: result };
+        }),
+
+      moveSection: (startIndex, endIndex) =>
+        set((state) => {
+          const result = Array.from(state.sectionOrder);
+          const [removed] = result.splice(startIndex, 1);
+          result.splice(endIndex, 0, removed);
+          return { sectionOrder: result };
+        }),
+
+      toggleSectionVisibility: (sectionId) =>
         set((state) => ({
           sectionOrder: state.sectionOrder.map((sec) =>
-            sec.id === id ? { ...sec, visible: !sec.visible } : sec
+            sec.id === sectionId ? { ...sec, visible: !sec.visible } : sec
           ),
         })),
 
-      moveSection: (dragIndex, hoverIndex) =>
-        set((state) => {
-          const updated = [...state.sectionOrder];
-          const [draggedItem] = updated.splice(dragIndex, 1);
-          updated.splice(hoverIndex, 0, draggedItem);
-          return { sectionOrder: updated };
-        }),
+      resetSectionOrder: () => set({ sectionOrder: defaultSectionOrder }),
 
-      resetSectionOrder: () => set({ sectionOrder: DEFAULT_SECTION_ORDER }),
-
+      // Personal Info
       updatePersonalInfo: (field, value) =>
         set((state) => ({
           resumeData: {
@@ -118,32 +201,7 @@ export const useResumeStore = create<ResumeState>()(
           },
         })),
 
-      addSkill: (skill) =>
-        set((state) => ({
-          resumeData: {
-            ...state.resumeData,
-            skills: [...state.resumeData.skills, skill],
-          },
-        })),
-
-      removeSkill: (id) =>
-        set((state) => ({
-          resumeData: {
-            ...state.resumeData,
-            skills: state.resumeData.skills.filter((s) => s.id !== id),
-          },
-        })),
-
-      updateSkill: (id, skill) =>
-        set((state) => ({
-          resumeData: {
-            ...state.resumeData,
-            skills: state.resumeData.skills.map((s) =>
-              s.id === id ? { ...s, ...skill } : s
-            ),
-          },
-        })),
-
+      // Links
       addLink: (link) =>
         set((state) => ({
           resumeData: {
@@ -160,21 +218,49 @@ export const useResumeStore = create<ResumeState>()(
           },
         })),
 
-      updateLink: (id, link) =>
+      updateLink: (id, updatedLink) =>
         set((state) => ({
           resumeData: {
             ...state.resumeData,
             links: (state.resumeData.links || []).map((l) =>
-              l.id === id ? { ...l, ...link } : l
+              l.id === id ? { ...l, ...updatedLink } : l
             ),
           },
         })),
 
+      // Skills
+      addSkill: (skill) =>
+        set((state) => ({
+          resumeData: {
+            ...state.resumeData,
+            skills: [...state.resumeData.skills, skill],
+          },
+        })),
+
+      removeSkill: (id) =>
+        set((state) => ({
+          resumeData: {
+            ...state.resumeData,
+            skills: state.resumeData.skills.filter((s) => s.id !== id),
+          },
+        })),
+
+      updateSkill: (id, updatedSkill) =>
+        set((state) => ({
+          resumeData: {
+            ...state.resumeData,
+            skills: state.resumeData.skills.map((s) =>
+              s.id === id ? { ...s, ...updatedSkill } : s
+            ),
+          },
+        })),
+
+      // Experience
       addExperience: (exp) =>
         set((state) => ({
           resumeData: {
             ...state.resumeData,
-            experiences: [exp, ...state.resumeData.experiences],
+            experiences: [...state.resumeData.experiences, exp],
           },
         })),
 
@@ -186,47 +272,22 @@ export const useResumeStore = create<ResumeState>()(
           },
         })),
 
-      updateExperience: (id, exp) =>
+      updateExperience: (id, updatedExp) =>
         set((state) => ({
           resumeData: {
             ...state.resumeData,
             experiences: state.resumeData.experiences.map((e) =>
-              e.id === id ? { ...e, ...exp } : e
+              e.id === id ? { ...e, ...updatedExp } : e
             ),
           },
         })),
 
-      addEducation: (edu) =>
-        set((state) => ({
-          resumeData: {
-            ...state.resumeData,
-            education: [edu, ...state.resumeData.education],
-          },
-        })),
-
-      removeEducation: (id) =>
-        set((state) => ({
-          resumeData: {
-            ...state.resumeData,
-            education: state.resumeData.education.filter((e) => e.id !== id),
-          },
-        })),
-
-      updateEducation: (id, edu) =>
-        set((state) => ({
-          resumeData: {
-            ...state.resumeData,
-            education: state.resumeData.education.map((e) =>
-              e.id === id ? { ...e, ...edu } : e
-            ),
-          },
-        })),
-
+      // Projects
       addProject: (proj) =>
         set((state) => ({
           resumeData: {
             ...state.resumeData,
-            projects: [proj, ...state.resumeData.projects],
+            projects: [...state.resumeData.projects, proj],
           },
         })),
 
@@ -238,16 +299,44 @@ export const useResumeStore = create<ResumeState>()(
           },
         })),
 
-      updateProject: (id, proj) =>
+      updateProject: (id, updatedProj) =>
         set((state) => ({
           resumeData: {
             ...state.resumeData,
             projects: state.resumeData.projects.map((p) =>
-              p.id === id ? { ...p, ...proj } : p
+              p.id === id ? { ...p, ...updatedProj } : p
             ),
           },
         })),
 
+      // Education
+      addEducation: (edu) =>
+        set((state) => ({
+          resumeData: {
+            ...state.resumeData,
+            education: [...state.resumeData.education, edu],
+          },
+        })),
+
+      removeEducation: (id) =>
+        set((state) => ({
+          resumeData: {
+            ...state.resumeData,
+            education: state.resumeData.education.filter((e) => e.id !== id),
+          },
+        })),
+
+      updateEducation: (id, updatedEdu) =>
+        set((state) => ({
+          resumeData: {
+            ...state.resumeData,
+            education: state.resumeData.education.map((e) =>
+              e.id === id ? { ...e, ...updatedEdu } : e
+            ),
+          },
+        })),
+
+      // Certifications
       addCertification: (cert) =>
         set((state) => ({
           resumeData: {
@@ -264,6 +353,17 @@ export const useResumeStore = create<ResumeState>()(
           },
         })),
 
+      updateCertification: (id, updatedCert) =>
+        set((state) => ({
+          resumeData: {
+            ...state.resumeData,
+            certifications: (state.resumeData.certifications || []).map((c) =>
+              c.id === id ? { ...c, ...updatedCert } : c
+            ),
+          },
+        })),
+
+      // Achievements
       addAchievement: (ach) =>
         set((state) => ({
           resumeData: {
@@ -279,9 +379,20 @@ export const useResumeStore = create<ResumeState>()(
             achievements: (state.resumeData.achievements || []).filter((a) => a.id !== id),
           },
         })),
+
+      updateAchievement: (id, updatedAch) =>
+        set((state) => ({
+          resumeData: {
+            ...state.resumeData,
+            achievements: (state.resumeData.achievements || []).map((a) =>
+              a.id === id ? { ...a, ...updatedAch } : a
+            ),
+          },
+        })),
     }),
     {
-      name: 'silent-resume-builder-storage',
+      name: 'ai_resume_studio_store',
+      storage: createJSONStorage(() => localStorage),
     }
   )
 );
