@@ -14,6 +14,8 @@ import {
   PersonalInfo,
 } from '@/types/resume';
 
+export type { SectionKey, SectionItem };
+
 const initialResumeData: ResumeData = {
   personalInfo: {
     fullName: '',

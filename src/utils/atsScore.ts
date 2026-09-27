@@ -3,6 +3,7 @@ import { ResumeData } from '@/types/resume';
 export function calculateAtsScore(data: ResumeData): {
   score: number;
   suggestions: string[];
+  tips: string[];
 } {
   let score = 0;
   const suggestions: string[] = [];
@@ -33,7 +34,7 @@ export function calculateAtsScore(data: ResumeData): {
   if (data.experiences && data.experiences.length > 0) {
     score += 15;
     const hasBullets = data.experiences.some(
-      (exp) => (exp.enhancedBullets?.length ?? 0) > 0 || exp.rawDetails?.trim().length > 20
+      (exp) => (exp.enhancedBullets?.length ?? 0) > 0 || (exp.rawDetails?.trim().length ?? 0) > 20
     );
     if (hasBullets) score += 10;
   } else {
@@ -62,5 +63,6 @@ export function calculateAtsScore(data: ResumeData): {
   return {
     score: Math.min(100, score),
     suggestions,
+    tips: suggestions, // Fixes page.tsx checking for .tips
   };
 }

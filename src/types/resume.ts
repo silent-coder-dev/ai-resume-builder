@@ -35,6 +35,8 @@ export interface Project {
   title: string;
   techStack: string[];
   description: string;
+  githubUrl?: string;
+  liveUrl?: string;
 }
 
 export interface Certification {
@@ -56,8 +58,10 @@ export interface PersonalInfo {
   phone: string;
   location: string;
   summary: string;
-  yearsOfExperience?: number;
+  yearsOfExperience?: number | string;
   experienceField?: string;
+  photoUrl?: string;
+  showPhoto?: boolean;
 }
 
 export interface ResumeData {
