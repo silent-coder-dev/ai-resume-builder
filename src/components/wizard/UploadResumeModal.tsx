@@ -3,6 +3,7 @@
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useResumeStore } from '@/store/useResumeStore';
+import { normalizeResumeData } from '@/utils/normalizeResumeData';
 import {
   Upload,
   X,
@@ -112,7 +113,7 @@ export const UploadResumeModal: React.FC<UploadResumeModalProps> = ({ isOpen, on
         throw new Error(data.error || 'Failed to parse resume. Please try a different PDF.');
       }
 
-      setResumeData(data.result);
+      setResumeData(normalizeResumeData(data.result));
       setSuccess(true);
 
       setTimeout(() => {
@@ -120,9 +121,13 @@ export const UploadResumeModal: React.FC<UploadResumeModalProps> = ({ isOpen, on
         setFile(null);
         onClose();
       }, 1200);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('PDF parsing error:', err);
-      setError(err.message || 'Unable to read file. Please ensure the PDF is not password protected.');
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Unable to read file. Please ensure the PDF is not password protected.'
+      );
     } finally {
       setLoading(false);
     }

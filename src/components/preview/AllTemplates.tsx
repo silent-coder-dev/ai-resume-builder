@@ -174,7 +174,9 @@ const DynamicSectionsRenderer: React.FC<{
                   <div>
                     <div className="text-xs font-bold text-slate-900">{edu.degree}</div>
                     <div className="text-[11px] text-slate-600">
-                      {edu.institution} {edu.fieldOfStudy ? `• ${edu.fieldOfStudy}` : ''}
+                      {edu.institution}
+                      {edu.institution && edu.fieldOfStudy ? ' • ' : ''}
+                      {edu.fieldOfStudy}
                     </div>
                   </div>
                   <div className="text-right">
@@ -182,7 +184,7 @@ const DynamicSectionsRenderer: React.FC<{
                       {edu.graduationYear}
                     </span>
                     {edu.scoreOrGpa && (
-                      <div className="text-[10px] text-slate-400">GPA: {edu.scoreOrGpa}</div>
+                      <div className="text-[10px] text-slate-400">Score: {edu.scoreOrGpa}</div>
                     )}
                   </div>
                 </div>

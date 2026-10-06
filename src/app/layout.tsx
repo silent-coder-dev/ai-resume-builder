@@ -22,7 +22,7 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   title: "AI Resume Studio | By silent_coder",
-  description: "ATS-optimized resume generator powered by Google Gemini",
+  description: "ATS-optimized resume generator powered by AI models from Gemini or OpenRouter",
 };
 
 export default function RootLayout({

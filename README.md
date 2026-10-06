@@ -2,17 +2,17 @@
 
 # 🚀 AI Resume Studio
 
-### Intelligent ATS Optimization & Precision Vector PDF Engineering Engine
+### A thoughtful workspace for professional, evidence-based resumes
 
-[![Next.js](https://img.shields.io/badge/Next.js-15.0+-black?style=for-the-badge&logo=nextdotjs&logoColor=white)](https://nextjs.org/)
+[![Next.js](https://img.shields.io/badge/Next.js-16-black?style=for-the-badge&logo=nextdotjs&logoColor=white)](https://nextjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3.4+-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
 [![Zustand](https://img.shields.io/badge/Zustand-State_Management-orange?style=for-the-badge)](https://zustand-demo.pmnd.rs/)
 [![Google Gemini](https://img.shields.io/badge/AI_Engine-Gemini_3.8_Flash-8E75B2?style=for-the-badge&logo=googlegemini&logoColor=white)](https://ai.google.dev/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 
 <p align="center">
-  <b>Built for vector-grade PDF generation, zero Chromium Mojo print crashes, and full drag-and-drop structural section control.</b>
+  <b>Create, refine, and tailor a resume while keeping every detail grounded in your real experience.</b>
 </p>
 
 ### 🌐 [Live Application: ai-resume-builder-silent.vercel.app](https://ai-resume-builder-silent.vercel.app)
@@ -25,17 +25,17 @@
 
 ## 🌟 Overview
 
-**AI Resume Studio** is an enterprise-grade resume builder engineered to resolve standard industry flaws: distorted PDF downloads, browser print engine crashes (Chromium/Brave Mojo IPC errors), and rigid section hierarchies.
+**AI Resume Studio** helps candidates create polished, ATS-aware resumes with guided editing, PDF import, AI proofreading, and job-description analysis.
 
 Check out the live production deployment here: **[https://ai-resume-builder-silent.vercel.app](https://ai-resume-builder-silent.vercel.app)**.
 
-Powered by **Google Gemini 3.8-Flash**, it delivers native multi-modal PDF parsing, actionable gap analysis against job descriptions, Google X-Y-Z formula bullet point generation, and dynamic drag-and-drop section reordering[cite: 1].
+Powered by **Google Gemini or OpenRouter**, it extracts resume information from PDFs, offers evidence-led feedback against job descriptions, and helps improve resume wording without inventing qualifications or metrics.
 
 ---
 
 ## 🔀 What We Built: Dynamic Section Reordering
 
-To support both **Early-Career Applicants** (who need *Projects* and *Education* upfront) and **Senior Engineers** (who prioritize *Work Experience*), we built a modular layout engine:
+To support both **early-career applicants** (who may prioritize *Projects* and *Education*) and **experienced professionals** (who may prioritize *Work Experience*), the editor includes a modular layout engine:
 
 * **Modular Priority Sequencing**: Freely reorder all core resume sections (`summary`, `skills`, `experience`, `projects`, `education`, `certifications`, `achievements`) via intuitive controls.
 * **Per-Section Visibility Controls**: Toggle individual sections on or off with an eye icon. Hidden or empty sections collapse cleanly without leaving visual gaps, empty headings, or broken borders.
@@ -47,9 +47,9 @@ To support both **Early-Career Applicants** (who need *Projects* and *Education*
 
 ## 🖨️ PDF Export Architecture: Isolated Iframe Sandboxing
 
-Standard browser-based printing (`window.print()`) frequently triggers Chromium Mojo IPC crashes and blank page anomalies, particularly in browsers with built-in AI extensions or strict ad-blockers (e.g., Brave Leo AI). 
+Resume export uses a dedicated print canvas and print-specific styles to create a clean A4 document while keeping interactive editor controls out of the output.
 
-We solved this using an **Isolated Sandboxing Engine**:
+The export flow prepares the document in an isolated frame:
 
 1. **DOM Cloning**: The target `#printable-resume-canvas` element is cloned using `.cloneNode(true)`.
 2. **Transform Stripping**: Dynamic zoom CSS (`transform: scale(...)`), view controls, and interactive editor margins are stripped from the clone.
@@ -60,47 +60,59 @@ We solved this using an **Isolated Sandboxing Engine**:
 
 ## 🛠️ Tech Stack & Libraries
 
-| Domain | Technology | Core Purpose |
-| :--- | :--- | :--- |
-| **Deployment** | **Vercel** | Global edge production hosting and continuous deployment |
-| **Framework** | **Next.js 15+ (App Router)**[cite: 1] | Server & Client Components, API Handlers, and Route Optimization |
-| **Language** | **TypeScript 5+**[cite: 1] | Full static type definitions across resume schemas and wizard payloads |
-| **State Store** | **Zustand (`persist`)**[cite: 1] | Reactive global state handling resume content, active themes, and reorder states |
-| **Styling** | **Tailwind CSS**[cite: 1] | Responsive utility layout styling and `@media print` rules |
-| **Animations** | **Framer Motion**[cite: 1] | Wizard step pill carousel animation (`layoutId`) and modal transitions |
-| **Icons** | **Lucide React**[cite: 1] | Lightweight, tree-shakeable UI iconography |
-| **AI Engine** | **Google GenAI (`gemini-3.8-flash`)**[cite: 1] | Multi-modal document parsing, Google X-Y-Z bullets, and semantic ATS screening |
-| **Print Sandbox** | **Isolated DOM Iframe** | Vector-grade A4 PDF export bypassing Chromium extension errors |
+<table>
+  <thead>
+    <tr>
+      <th align="left">Domain</th>
+      <th align="left">Technology</th>
+      <th align="left">Purpose</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td><strong>Deployment</strong></td><td>Vercel</td><td>Application hosting and continuous deployment</td></tr>
+    <tr><td><strong>Framework</strong></td><td>Next.js 16 · App Router</td><td>Pages, layouts, and server-side AI API routes</td></tr>
+    <tr><td><strong>Language</strong></td><td>TypeScript 5</td><td>Typed resume data and application logic</td></tr>
+    <tr><td><strong>State</strong></td><td>Zustand 5 · Persist</td><td>Resume data and editor preferences saved in the browser</td></tr>
+    <tr><td><strong>Styling</strong></td><td>Tailwind CSS 4</td><td>Responsive application UI and print styles</td></tr>
+    <tr><td><strong>Animation</strong></td><td>Framer Motion</td><td>Page, control, and modal transitions</td></tr>
+    <tr><td><strong>Icons</strong></td><td>Lucide React</td><td>Consistent interface iconography</td></tr>
+    <tr><td><strong>AI providers</strong></td><td>Google Gemini or OpenRouter</td><td>Resume parsing, proofreading, summaries, and job-fit analysis</td></tr>
+    <tr><td><strong>PDF export</strong></td><td>Print-isolated resume canvas</td><td>A4 resume output with dedicated print styling</td></tr>
+  </tbody>
+</table>
 
 ---
 
 ## ✨ Key Features
 
-### 🤖 Google Gemini 3.8-Flash AI Suite
-* **Base64 PDF Resume Extraction**: Directly upload existing resumes in PDF format; the AI extracts raw text and auto-hydrates form fields[cite: 1].
-* **Google X-Y-Z Bullet Point Enhancer**: Converts basic project notes into metric-driven points: *"Accomplished [X], as measured by [Y], by doing [Z]"*[cite: 1].
-* **Semantic ATS Job Matcher**: Scores candidate resumes against target job descriptions, evaluating keyword matches, seniority requirements, and domain alignment.
-* **Executive Summary Generator**: Produces third-person professional summaries without generic buzzwords[cite: 1].
+### 🤖 AI Resume Toolkit
+* **Evidence-only PDF Resume Extraction**: Import a PDF from the homepage and map only information present in the file to resume fields; absent sections such as work experience stay empty instead of being guessed.
+* **Complete Education Records**: Keep secondary/Class 10, senior secondary/Class 12, diploma, undergraduate, and postgraduate qualifications as separate entries with institution, exact qualification, specialization/stream, passing year, and marks/CGPA when available. Missing details stay blank and can be added manually.
+* **Truthful Resume Optimization**: Review all suggested narrative edits for grammar, clarity, and consistency before applying them; factual fields, skills, dates, and education stay unchanged.
+* **Evidence-based Job Matcher**: Compares documented resume evidence against job requirements, separates required from preferred gaps, and reports seniority/domain concerns. JD tailoring eligibility is based on role/domain fit, relevant skills, experience level, and critical requirements—not the match percentage. A short-lived server-signed authorization is bound to the analyzed resume and job description.
+* **Privacy-conscious draft workflow**: Continue a browser-saved draft or begin a new resume from scratch or a PDF import.
+* **Experience Bullet Enhancer**: Rewrites candidate-provided notes into concise action bullets without fabricating metrics or outcomes.
+* **Executive Summary Generator**: Produces professional, role-focused summaries from the candidate's supplied details.
 
 ### 🧭 Sliding Navigation Wizard & Profile Links
 * **Sliding Navigation Bar**: Framer Motion tab slider with scroll arrows and step indicators.
 * **Clickable Online Profiles**: Add direct, clickable links for **GitHub**, **LinkedIn**, **LeetCode**, **Codeforces**, **Portfolio**, or custom platforms.
 
-### 📄 11 ATS-Optimized Print Templates[cite: 1]
-* `Modern Tech`[cite: 1]
-* `Executive Serif`[cite: 1]
-* `Creative Sidebar`[cite: 1]
-* `Compact Grid`[cite: 1]
-* `Pure Minimal`[cite: 1]
-* `Corporate Banner`[cite: 1]
-* `Career Timeline`[cite: 1]
-* `Legal / Academic`[cite: 1]
-* `Bold Designer`[cite: 1]
-* `Clinical Healthcare`[cite: 1]
-* `Blank Canvas`[cite: 1]
+### 📄 11 ATS-Aware Print Templates
+* `Modern Tech`
+* `Executive Serif`
+* `Creative Sidebar`
+* `Compact Grid`
+* `Pure Minimal`
+* `Corporate Banner`
+* `Career Timeline`
+* `Legal / Academic`
+* `Bold Designer`
+* `Clinical Healthcare`
+* `Blank Canvas`
 
-### 🎯 Pre-Loaded Industry Profiles[cite: 1]
-* Complete archetypes for Java Backend, MERN Stack, Legal, Healthcare, Data Science, Education, UI/UX, Sales, and Finance[cite: 1].
+### 🎯 Pre-Loaded Industry Profiles
+* Example profiles for Java backend, MERN stack, legal, healthcare, data science, education, UI/UX, sales, and finance.
 
 ---
 
@@ -108,39 +120,56 @@ We solved this using an **Isolated Sandboxing Engine**:
 
 ### 1. Clone the Repository
 ```bash
-git clone [https://github.com/silent-coder-dev/ai-resume-studio.git](https://github.com/silent-coder-dev/ai-resume-studio.git)
+git clone https://github.com/silent-coder-dev/ai-resume-studio.git
 cd ai-resume-studio
-2. Install Dependencies
-Bash
+```
+
+### 2. Install Dependencies
+```bash
 npm install
-3. Setup Environment Variables
-Create a .env.local file in your project root:
+```
 
-Code snippet
-GEMINI_API_KEY="your-google-gemini-api-key"
-4. Run Development Server
-Bash
+### 3. Set Up Environment Variables
+Create or update `.env.local` in your project root. To use OpenRouter, add:
+
+```env
+AI_PROVIDER=openrouter
+OPENROUTER_API_KEY=your-openrouter-api-key
+OPENROUTER_MODEL=google/gemini-2.5-flash
+# Optional comma-separated OpenRouter model fallbacks:
+# OPENROUTER_FALLBACK_MODELS=provider/backup-model
+```
+
+Choose a supported model from [OpenRouter's model catalog](https://openrouter.ai/models). Alternatively, use Gemini with `AI_PROVIDER=gemini` and `GEMINI_API_KEY=your-google-gemini-api-key`. Keep `.env.local` private and never commit API keys. For Vercel, add the same variables under **Project Settings → Environment Variables**, select the required environments, and redeploy.
+
+### 4. Run the Development Server
+```bash
 npm run dev
-Open http://localhost:3000 in your browser or view the deployed version at https://ai-resume-builder-silent.vercel.app.
+```
 
-📂 Project Structure
-Plaintext
+Open [http://localhost:3000](http://localhost:3000). The homepage provides the resume workflow; the editor is available at `/builder`.
+
+### 📂 Project Structure
+```text
 src/
 ├── app/
-│   ├── api/ai/route.ts              # Gemini 3.8-Flash API (Parser, Matcher, Enhancer)
+│   ├── api/ai/route.ts              # AI providers and resume/JD actions
+│   ├── builder/page.tsx             # Resume editor and live preview
 │   ├── globals.css                  # Print media queries (@page A4) & base styles
 │   ├── layout.tsx                   # Root HTML shell & metadata
-│   └── page.tsx                     # Studio editor & preview layout
+│   └── page.tsx                     # Product homepage
 ├── components/
-│   ├── layout/Footer.tsx            # Application footer component
+│   ├── home/                        # Landing page and homepage footer
+│   ├── layout/Footer.tsx            # Editor footer
 │   ├── preview/
 │   │   ├── AllTemplates.tsx         # 11 reorder-compliant resume templates
-│   │   └── ResumeCanvasContainer.tsx# Canvas container with scale responsiveness
+│   │   └── ResumeCanvasContainer.tsx # Responsive resume preview canvas
 │   ├── ui/
 │   │   └── AtsScoreMeter.tsx        # Dynamic circular ATS score gauge
 │   └── wizard/
 │       ├── FormWizard.tsx           # Multi-step editor with slider tabs & links
 │       ├── JobMatcherModal.tsx      # Semantic JD matcher & gap analysis
+│       ├── ResumeOptimizeButton.tsx # Reviewable AI proofreading workflow
 │       ├── SectionReorderModal.tsx  # Dynamic section reorder & visibility modal
 │       └── UploadResumeModal.tsx    # Native Base64 PDF parsing modal
 ├── store/
@@ -150,6 +179,9 @@ src/
 │   └── resume.ts                    # Core TypeScript interfaces
 └── utils/
     ├── atsScore.ts                  # ATS heuristics calculation logic
-    └── exportPdf.ts                 # Isolated hidden iframe PDF sandboxing utility
-📜 License
+    ├── exportPdf.ts                 # Isolated hidden iframe PDF export
+    └── normalizeResumeData.ts       # Validation and mapping of extracted resume data
+```
+
+### 📜 License
 Distributed under the MIT License. Engineered by silent_coder

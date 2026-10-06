@@ -11,7 +11,6 @@ import {
   CheckCircle2,
   AlertTriangle,
   ArrowRight,
-  Plus,
   Compass,
   ShieldAlert,
   FileCheck2,
@@ -41,7 +40,7 @@ interface MatchResult {
 }
 
 export const JobMatcherModal: React.FC<JobMatcherModalProps> = ({ isOpen, onClose }) => {
-  const { resumeData, updatePersonalInfo, addSkill } = useResumeStore();
+  const { resumeData, updatePersonalInfo } = useResumeStore();
   const [jobDescription, setJobDescription] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<MatchResult | null>(null);
@@ -61,8 +60,8 @@ export const JobMatcherModal: React.FC<JobMatcherModalProps> = ({ isOpen, onClos
   const handleAnalyze = async (force: boolean = false) => {
     if (!jobDescription.trim()) return;
 
-    if (jobDescription.trim().length < 45) {
-      setError('Job description is too brief. Please paste the full job posting or requirements list.');
+    if (jobDescription.trim().length < 80) {
+      setError('Add the complete job posting (at least 80 characters) for a meaningful comparison.');
       return;
     }
 
@@ -74,11 +73,10 @@ export const JobMatcherModal: React.FC<JobMatcherModalProps> = ({ isOpen, onClos
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          action: 'match-jd',
+          action: 'match-job',
           payload: {
             resumeData,
             jobDescription,
-            forceAnyway: force,
           },
         }),
       });
@@ -91,8 +89,12 @@ export const JobMatcherModal: React.FC<JobMatcherModalProps> = ({ isOpen, onClos
       if ((data.result.domainMismatch || data.result.licenseRequired) && !force) {
         setUserAcknowledgedTerms(false);
       }
-    } catch (err: any) {
-      setError(err.message || 'Something went wrong while auditing the job posting');
+    } catch (err: unknown) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Something went wrong while auditing the job posting'
+      );
     } finally {
       setLoading(false);
     }
@@ -116,21 +118,6 @@ export const JobMatcherModal: React.FC<JobMatcherModalProps> = ({ isOpen, onClos
     setForceAnywayMode(true);
     if (result?.tailoredSummary) {
       updatePersonalInfo('summary', result.tailoredSummary);
-    }
-  };
-
-  const handleAddMissingSkill = (skill: string) => {
-    addSkill({
-      id: Date.now().toString(),
-      name: skill,
-      level: 'Intermediate',
-    });
-    if (result) {
-      setResult({
-        ...result,
-        missingSkills: result.missingSkills.filter((s) => s !== skill),
-        matchingSkills: [...result.matchingSkills, skill],
-      });
     }
   };
 
@@ -197,6 +184,7 @@ export const JobMatcherModal: React.FC<JobMatcherModalProps> = ({ isOpen, onClos
                 </label>
                 <textarea
                   rows={4}
+                  maxLength={30000}
                   placeholder="Paste responsibilities, key requirements, or complete job description here..."
                   value={jobDescription}
                   onChange={(e) => setJobDescription(e.target.value)}
@@ -318,21 +306,21 @@ export const JobMatcherModal: React.FC<JobMatcherModalProps> = ({ isOpen, onClos
                   {result.missingSkills.length > 0 && (
                     <div className="space-y-1.5">
                       <div className="text-xs font-bold text-rose-700 flex items-center gap-1.5">
-                        <AlertTriangle className="w-3.5 h-3.5" /> Missing Tech & Domain Keywords (Click to add):
+                        <AlertTriangle className="w-3.5 h-3.5" /> Requirements not evidenced in this resume:
                       </div>
                       <div className="flex flex-wrap gap-1.5">
                         {result.missingSkills.map((skill, idx) => (
-                          <button
+                          <span
                             key={idx}
-                            type="button"
-                            onClick={() => handleAddMissingSkill(skill)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 rounded-lg text-xs font-semibold transition cursor-pointer"
+                            className="inline-flex items-center gap-1 px-2.5 py-1 bg-rose-50 border border-rose-200 text-rose-700 rounded-lg text-xs font-semibold"
                           >
-                            <Plus className="w-3 h-3" />
                             <span>{skill}</span>
-                          </button>
+                          </span>
                         ))}
                       </div>
+                      <p className="text-[10px] leading-4 text-slate-500">
+                        Only add a skill to your resume if you genuinely have that experience.
+                      </p>
                     </div>
                   )}
 
@@ -388,7 +376,7 @@ export const JobMatcherModal: React.FC<JobMatcherModalProps> = ({ isOpen, onClos
                         </button>
                       </div>
                       <p className="text-xs text-slate-700 leading-relaxed italic">
-                        "{result.tailoredSummary}"
+                        &quot;{result.tailoredSummary}&quot;
                       </p>
                     </div>
                   )}
