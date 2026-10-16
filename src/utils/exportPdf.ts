@@ -1,29 +1,60 @@
-export function printResumeDocument(elementId: string, candidateName: string = 'Resume') {
+const PRINT_FRAME_ID = 'resume-print-iframe';
+const MAX_STYLE_WAIT_MS = 2500;
+
+function buildFileTitle(candidateName: string): string {
+  const safeName = candidateName
+    .trim()
+    .replace(/[^a-zA-Z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+  return safeName ? `${safeName}_Resume` : 'Resume';
+}
+
+// Resolves when every stylesheet and web font inside the print frame is ready,
+// or after a short safety timeout so printing never hangs.
+function waitForPrintAssets(doc: Document): Promise<void> {
+  const stylesheetLoads = Array.from(
+    doc.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]')
+  )
+    .filter((link) => !link.sheet)
+    .map(
+      (link) =>
+        new Promise<void>((resolve) => {
+          link.addEventListener('load', () => resolve(), { once: true });
+          link.addEventListener('error', () => resolve(), { once: true });
+        })
+    );
+
+  const assetsReady = Promise.all(stylesheetLoads).then(() =>
+    doc.fonts ? doc.fonts.ready.then(() => undefined) : undefined
+  );
+  const timeout = new Promise<void>((resolve) => setTimeout(resolve, MAX_STYLE_WAIT_MS));
+  return Promise.race([assetsReady, timeout]);
+}
+
+export function printResumeDocument(elementId: string, candidateName: string = '') {
   const sourceElement = document.getElementById(elementId);
   if (!sourceElement) {
     console.error(`Element with id "${elementId}" not found.`);
     return;
   }
 
-  const title = `${candidateName.replace(/[^a-zA-Z0-9]/g, '_') || 'Resume'}`;
+  const title = buildFileTitle(candidateName);
 
-  // Clone active document CSS & font links
+  // Copy the app's CSS so the printed page looks exactly like the preview
   const styleElements = Array.from(document.querySelectorAll('link[rel="stylesheet"], style'))
     .map((node) => node.outerHTML)
     .join('\n');
+  // The <html> class carries the font variables (Geist) used by the templates
+  const htmlClassName = document.documentElement.className.replace(/"/g, '');
 
-  // Clone content cleanly
+  // Clone content and drop editor-only parts (page-break markers, placeholders)
   const clone = sourceElement.cloneNode(true) as HTMLElement;
   clone.querySelectorAll('.no-print').forEach((node) => node.remove());
-  clone.style.transform = 'none';
-  clone.style.margin = '0 auto';
-  clone.style.width = '794px';
-  clone.style.boxShadow = 'none';
 
   // Construct isolated sandbox document
   const htmlContent = `
     <!DOCTYPE html>
-    <html lang="en">
+    <html lang="en" class="${htmlClassName}">
       <head>
         <meta charset="utf-8" />
         <title>${title}</title>
@@ -65,10 +96,12 @@ export function printResumeDocument(elementId: string, candidateName: string = '
   `;
 
   // Use isolated hidden iframe to bypass browser extension hooks
-  let iframe = document.getElementById('resume-print-iframe') as HTMLIFrameElement | null;
+  let iframe = document.getElementById(PRINT_FRAME_ID) as HTMLIFrameElement | null;
   if (!iframe) {
     iframe = document.createElement('iframe');
-    iframe.id = 'resume-print-iframe';
+    iframe.id = PRINT_FRAME_ID;
+    iframe.title = 'Resume print preview';
+    iframe.setAttribute('aria-hidden', 'true');
     iframe.style.position = 'fixed';
     iframe.style.right = '0';
     iframe.style.bottom = '0';
@@ -79,8 +112,9 @@ export function printResumeDocument(elementId: string, candidateName: string = '
     document.body.appendChild(iframe);
   }
 
-  const iframeDoc = iframe.contentWindow?.document;
-  if (!iframeDoc) {
+  const frameWindow = iframe.contentWindow;
+  const iframeDoc = frameWindow?.document;
+  if (!frameWindow || !iframeDoc) {
     console.error('Cannot access iframe document');
     return;
   }
@@ -89,9 +123,9 @@ export function printResumeDocument(elementId: string, candidateName: string = '
   iframeDoc.write(htmlContent);
   iframeDoc.close();
 
-  // Allow fonts & styles to settle, then invoke clean print
-  setTimeout(() => {
-    iframe?.contentWindow?.focus();
-    iframe?.contentWindow?.print();
-  }, 250);
+  // Wait for styles and fonts, then open the browser's "Save as PDF" dialog
+  void waitForPrintAssets(iframeDoc).then(() => {
+    frameWindow.focus();
+    frameWindow.print();
+  });
 }

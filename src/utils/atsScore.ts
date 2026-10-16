@@ -1,68 +1,84 @@
 import { ResumeData } from '@/types/resume';
+import {
+  hasText,
+  isFilledEducation,
+  isFilledExperience,
+  isFilledLink,
+  isFilledProject,
+  isFilledSkill,
+} from '@/utils/resumeContent';
 
 export function calculateAtsScore(data: ResumeData): {
   score: number;
-  suggestions: string[];
   tips: string[];
 } {
   let score = 0;
-  const suggestions: string[] = [];
+  const tips: string[] = [];
 
   // 1. Personal Info Check (25 pts)
   const { fullName, email, phone, location, summary } = data.personalInfo || {};
-  if (fullName && fullName.trim()) score += 5;
-  else suggestions.push('Add your full name.');
+  if (hasText(fullName)) score += 5;
+  else tips.push('Add your full name.');
 
-  if (email && email.trim()) score += 5;
-  else suggestions.push('Provide a valid email address.');
+  if (hasText(email)) score += 5;
+  else tips.push('Provide a valid email address.');
 
-  if (phone && phone.trim()) score += 5;
-  else suggestions.push('Add your phone number.');
+  if (hasText(phone)) score += 5;
+  else tips.push('Add your phone number.');
 
-  if (location && location.trim()) score += 5;
-  else suggestions.push('Include your location.');
+  if (hasText(location)) score += 5;
+  else tips.push('Include your location.');
 
-  if (summary && summary.trim().length > 30) score += 5;
-  else suggestions.push('Write a strong professional summary.');
+  if (hasText(summary) && summary.trim().length > 30) score += 5;
+  else tips.push('Write a strong professional summary.');
+
+  // Only entries with real content count. Blank rows added in the editor are ignored.
+  const skills = (data.skills ?? []).filter(isFilledSkill);
+  const experiences = (data.experiences ?? []).filter(isFilledExperience);
+  const projects = (data.projects ?? []).filter(isFilledProject);
+  const education = (data.education ?? []).filter(isFilledEducation);
+  const links = (data.links ?? []).filter(isFilledLink);
 
   // 2. Skills Check (20 pts)
-  if (data.skills && data.skills.length >= 5) score += 20;
-  else if (data.skills && data.skills.length > 0) score += 10;
-  else suggestions.push('Add at least 5 key skills.');
+  if (skills.length >= 5) score += 20;
+  else if (skills.length > 0) {
+    score += 10;
+    tips.push('Add at least 5 key skills.');
+  } else tips.push('Add at least 5 key skills.');
 
   // 3. Work Experience Check (25 pts)
-  if (data.experiences && data.experiences.length > 0) {
+  if (experiences.length > 0) {
     score += 15;
-    const hasBullets = data.experiences.some(
-      (exp) => (exp.enhancedBullets?.length ?? 0) > 0 || (exp.rawDetails?.trim().length ?? 0) > 20
+    const hasBullets = experiences.some(
+      (exp) => (exp.enhancedBullets ?? []).some(hasText) || (exp.rawDetails?.trim().length ?? 0) > 20
     );
     if (hasBullets) score += 10;
+    else tips.push('Describe what you did in each role (a few clear bullet points).');
   } else {
-    suggestions.push('Add your relevant work experiences.');
+    tips.push('Add your relevant work experiences.');
   }
 
   // 4. Projects Check (15 pts)
-  if (data.projects && data.projects.length > 0) {
+  if (projects.length > 0) {
     score += 15;
   } else {
-    suggestions.push('Add at least 1-2 major projects.');
+    tips.push('Add at least 1-2 major projects.');
   }
 
   // 5. Education Check (10 pts)
-  if (data.education && data.education.length > 0) {
+  if (education.length > 0) {
     score += 10;
   } else {
-    suggestions.push('Include your educational qualifications.');
+    tips.push('Include your educational qualifications.');
   }
 
   // 6. Links Bonus (5 pts)
-  if (data.links && (data.links?.length ?? 0) > 0) {
+  if (links.length > 0) {
     score += 5;
   }
 
   return {
     score: Math.min(100, score),
-    suggestions,
-    tips: suggestions, // Fixes page.tsx checking for .tips
+    tips,
   };
 }

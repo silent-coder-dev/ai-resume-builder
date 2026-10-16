@@ -1,8 +1,10 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useResumeStore } from '@/store/useResumeStore';
+import { callAi } from '@/utils/aiClient';
+import { createId, hasText, isFilledEducation, isFilledExperience, isFilledProject, isFilledSkill } from '@/utils/resumeContent';
 import {
   User,
   Sparkles,
@@ -20,7 +22,18 @@ import {
   CheckCircle2,
   Globe,
   ArrowRight,
+  AlertCircle,
 } from 'lucide-react';
+
+// Splits a comma-separated field without trimming the end of the text being
+// typed, so multi-word entries like "Spring Boot" keep their spaces.
+const splitCommaList = (value: string) => value.split(',').map((part) => part.trimStart());
+
+const EmptyStepHint: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <p className="rounded-xl border border-dashed border-slate-200 bg-slate-50/70 px-3 py-4 text-center text-[11px] text-slate-500">
+    {children}
+  </p>
+);
 
 interface FormWizardProps {
   onSwitchToPreview?: () => void;
@@ -50,7 +63,8 @@ const STEPS = [
 
 export const FormWizard: React.FC<FormWizardProps> = ({ onSwitchToPreview }) => {
   const [activeStep, setActiveStep] = useState(0);
-  const [enhancingIndex, setEnhancingIndex] = useState<number | null>(null);
+  const [enhancingId, setEnhancingId] = useState<string | null>(null);
+  const [enhanceErrors, setEnhanceErrors] = useState<Record<string, string>>({});
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
   const [summaryError, setSummaryError] = useState<string | null>(null);
   const [showSummaryRequirements, setShowSummaryRequirements] = useState(false);
@@ -62,6 +76,8 @@ export const FormWizard: React.FC<FormWizardProps> = ({ onSwitchToPreview }) => 
   const [summaryYearsOfExperience, setSummaryYearsOfExperience] = useState('');
 
   const navScrollRef = useRef<HTMLDivElement>(null);
+  const stepBodyRef = useRef<HTMLDivElement>(null);
+  const stepButtonRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
   const {
     resumeData,
@@ -71,6 +87,7 @@ export const FormWizard: React.FC<FormWizardProps> = ({ onSwitchToPreview }) => 
     updateLink,
     addSkill,
     removeSkill,
+    updateSkill,
     addExperience,
     removeExperience,
     updateExperience,
@@ -82,9 +99,21 @@ export const FormWizard: React.FC<FormWizardProps> = ({ onSwitchToPreview }) => 
     updateEducation,
     addCertification,
     removeCertification,
+    updateCertification,
     addAchievement,
     removeAchievement,
+    updateAchievement,
   } = useResumeStore();
+
+  // Keep the active tab visible and start each step at the top
+  useEffect(() => {
+    stepButtonRefs.current[activeStep]?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'nearest',
+      inline: 'center',
+    });
+    stepBodyRef.current?.scrollTo({ top: 0 });
+  }, [activeStep]);
 
   const scrollNav = (direction: 'left' | 'right') => {
     if (navScrollRef.current) {
@@ -94,10 +123,10 @@ export const FormWizard: React.FC<FormWizardProps> = ({ onSwitchToPreview }) => 
   };
 
   const hasSummaryEvidence =
-    resumeData.skills.some((skill) => skill.name.trim()) ||
-    resumeData.experiences.some((experience) => experience.rawDetails.trim()) ||
-    resumeData.projects.some((project) => project.description.trim()) ||
-    resumeData.education.some((education) => education.degree.trim() || education.institution.trim());
+    resumeData.skills.some(isFilledSkill) ||
+    resumeData.experiences.some(isFilledExperience) ||
+    resumeData.projects.some(isFilledProject) ||
+    resumeData.education.some(isFilledEducation);
   const hasTargetRole = Boolean(resumeData.personalInfo.targetRole.trim());
   const hasSummaryContent = hasTargetRole && hasSummaryEvidence;
   const isExperienceDetailsReady =
@@ -127,35 +156,25 @@ export const FormWizard: React.FC<FormWizardProps> = ({ onSwitchToPreview }) => 
     setIsGeneratingSummary(true);
     setSummaryError(null);
     try {
-      const res = await fetch('/api/ai', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'generate-summary',
-          payload: {
-            targetRole: resumeData.personalInfo.targetRole,
-            experienceField: resumeData.personalInfo.experienceField,
-            candidateType: summaryCandidateType,
-            fresherEducationStatus:
-              summaryCandidateType === 'fresher' ? fresherEducationStatus : undefined,
-            passingYear: summaryCandidateType === 'fresher' ? summaryPassingYear : undefined,
-            yearsOfExperience:
-              summaryCandidateType === 'experienced'
-                ? summaryYearsOfExperience
-                : 'Fresher',
-            skills: resumeData.skills,
-            education: resumeData.education,
-            experiences: resumeData.experiences,
-            projects: resumeData.projects,
-            achievements: resumeData.achievements,
-          },
-        }),
+      const summary = await callAi<unknown>('generate-summary', {
+        targetRole: resumeData.personalInfo.targetRole,
+        experienceField: resumeData.personalInfo.experienceField,
+        candidateType: summaryCandidateType,
+        fresherEducationStatus:
+          summaryCandidateType === 'fresher' ? fresherEducationStatus : undefined,
+        passingYear: summaryCandidateType === 'fresher' ? summaryPassingYear : undefined,
+        yearsOfExperience:
+          summaryCandidateType === 'experienced' ? summaryYearsOfExperience : 'Fresher',
+        skills: resumeData.skills.filter(isFilledSkill),
+        education: resumeData.education.filter(isFilledEducation),
+        experiences: resumeData.experiences.filter(isFilledExperience),
+        projects: resumeData.projects.filter(isFilledProject),
+        achievements: resumeData.achievements,
       });
-      const data = await res.json();
-      if (!res.ok || typeof data.result !== 'string' || !data.result.trim()) {
-        throw new Error(data.error || 'Summary generation failed. Please try again.');
+      if (!hasText(summary)) {
+        throw new Error('Summary generation failed. Please try again.');
       }
-      updatePersonalInfo('summary', data.result);
+      updatePersonalInfo('summary', summary.trim());
     } catch (err) {
       console.error('Summary generation failed:', err);
       setSummaryError(
@@ -166,33 +185,36 @@ export const FormWizard: React.FC<FormWizardProps> = ({ onSwitchToPreview }) => 
     }
   };
 
-  const handleEnhanceExperience = async (index: number) => {
-    const exp = resumeData.experiences[index];
+  const handleEnhanceExperience = async (experienceId: string) => {
+    const exp = resumeData.experiences.find((item) => item.id === experienceId);
     if (!exp || !exp.rawDetails.trim()) return;
 
-    setEnhancingIndex(index);
+    setEnhancingId(experienceId);
+    setEnhanceErrors((current) => {
+      const next = { ...current };
+      delete next[experienceId];
+      return next;
+    });
     try {
-      const res = await fetch('/api/ai', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'enhance-experience',
-          payload: {
-            company: exp.company,
-            role: exp.role,
-            rawDetails: exp.rawDetails,
-            targetRole: resumeData.personalInfo.targetRole,
-          },
-        }),
+      const bullets = await callAi<unknown>('enhance-experience', {
+        company: exp.company,
+        role: exp.role,
+        rawDetails: exp.rawDetails,
+        targetRole: resumeData.personalInfo.targetRole,
       });
-      const data = await res.json();
-      if (data.result && Array.isArray(data.result)) {
-        updateExperience(exp.id, { enhancedBullets: data.result });
+      const cleanBullets = Array.isArray(bullets) ? bullets.filter(hasText) : [];
+      if (cleanBullets.length === 0) {
+        throw new Error('AI did not return any bullet points. Please try again.');
       }
+      updateExperience(experienceId, { enhancedBullets: cleanBullets });
     } catch (err) {
       console.error('Experience enhancement failed:', err);
+      setEnhanceErrors((current) => ({
+        ...current,
+        [experienceId]: err instanceof Error ? err.message : 'Enhancement failed. Please try again.',
+      }));
     } finally {
-      setEnhancingIndex(null);
+      setEnhancingId(null);
     }
   };
 
@@ -219,7 +241,11 @@ export const FormWizard: React.FC<FormWizardProps> = ({ onSwitchToPreview }) => 
             return (
               <button
                 key={step.id}
+                ref={(node) => {
+                  stepButtonRefs.current[idx] = node;
+                }}
                 type="button"
+                aria-current={isActive ? 'step' : undefined}
                 onClick={() => setActiveStep(idx)}
                 className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer shrink-0 ${
                   isActive ? 'text-white' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
@@ -258,17 +284,19 @@ export const FormWizard: React.FC<FormWizardProps> = ({ onSwitchToPreview }) => 
       </div>
 
       {/* Form Step Body */}
-      <div className="p-4 sm:p-6 overflow-y-auto flex-1 space-y-4">
+      <div ref={stepBodyRef} className="p-4 sm:p-6 overflow-y-auto flex-1 space-y-4">
         {/* 1. PERSONAL INFO & CLICKABLE LINKS */}
         {activeStep === 0 && (
           <div className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                <label htmlFor="resume-full-name" className="block text-[11px] font-bold text-slate-700 mb-1">
                   Full Name
                 </label>
                 <input
+                  id="resume-full-name"
                   type="text"
+                  autoComplete="name"
                   value={resumeData.personalInfo.fullName}
                   onChange={(e) => updatePersonalInfo('fullName', e.target.value)}
                   placeholder="e.g. Satyam Singh"
@@ -276,10 +304,11 @@ export const FormWizard: React.FC<FormWizardProps> = ({ onSwitchToPreview }) => 
                 />
               </div>
               <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                <label htmlFor="resume-target-role" className="block text-[11px] font-bold text-slate-700 mb-1">
                   Target Role / Job Title
                 </label>
                 <input
+                  id="resume-target-role"
                   type="text"
                   value={resumeData.personalInfo.targetRole}
                   onChange={(e) => {
@@ -294,9 +323,11 @@ export const FormWizard: React.FC<FormWizardProps> = ({ onSwitchToPreview }) => 
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">Email</label>
+                <label htmlFor="resume-email" className="block text-[11px] font-bold text-slate-700 mb-1">Email</label>
                 <input
+                  id="resume-email"
                   type="email"
+                  autoComplete="email"
                   value={resumeData.personalInfo.email}
                   onChange={(e) => updatePersonalInfo('email', e.target.value)}
                   placeholder="name@example.com"
@@ -304,9 +335,11 @@ export const FormWizard: React.FC<FormWizardProps> = ({ onSwitchToPreview }) => 
                 />
               </div>
               <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">Phone</label>
+                <label htmlFor="resume-phone" className="block text-[11px] font-bold text-slate-700 mb-1">Phone</label>
                 <input
+                  id="resume-phone"
                   type="tel"
+                  autoComplete="tel"
                   value={resumeData.personalInfo.phone}
                   onChange={(e) => updatePersonalInfo('phone', e.target.value)}
                   placeholder="+91 9876543210"
@@ -314,8 +347,9 @@ export const FormWizard: React.FC<FormWizardProps> = ({ onSwitchToPreview }) => 
                 />
               </div>
               <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">Location</label>
+                <label htmlFor="resume-location" className="block text-[11px] font-bold text-slate-700 mb-1">Location</label>
                 <input
+                  id="resume-location"
                   type="text"
                   value={resumeData.personalInfo.location}
                   onChange={(e) => updatePersonalInfo('location', e.target.value)}
@@ -338,7 +372,7 @@ export const FormWizard: React.FC<FormWizardProps> = ({ onSwitchToPreview }) => 
                   type="button"
                   onClick={() =>
                     addLink({
-                      id: Date.now().toString(),
+                      id: createId(),
                       platform: 'GitHub',
                       url: '',
                     })
@@ -361,23 +395,27 @@ export const FormWizard: React.FC<FormWizardProps> = ({ onSwitchToPreview }) => 
                   <div key={link.id} className="flex items-center gap-2">
                     <input
                       type="text"
+                      aria-label="Link label"
                       placeholder="Label (e.g. GitHub, LinkedIn)"
                       value={link.platform}
                       onChange={(e) => updateLink(link.id, { platform: e.target.value })}
                       className="w-28 text-xs p-2 border border-slate-200 rounded-xl bg-white outline-none font-semibold shrink-0"
                     />
                     <input
-                      type="text"
+                      type="url"
+                      inputMode="url"
+                      aria-label="Link URL"
                       placeholder="URL (e.g. https://github.com/username)"
                       value={link.url}
                       onChange={(e) => updateLink(link.id, { url: e.target.value })}
-                      className="flex-1 text-xs p-2 border border-slate-200 rounded-xl bg-white outline-none font-mono"
+                      className="min-w-0 flex-1 text-xs p-2 border border-slate-200 rounded-xl bg-white outline-none font-mono"
                     />
                     <button
                       type="button"
                       onClick={() => removeLink(link.id)}
                       className="p-1.5 text-slate-400 hover:text-red-600 transition cursor-pointer"
                       title="Remove Link"
+                      aria-label="Remove link"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -643,6 +681,7 @@ export const FormWizard: React.FC<FormWizardProps> = ({ onSwitchToPreview }) => 
               )}
               <textarea
                 rows={3}
+                aria-label="Professional summary"
                 value={resumeData.personalInfo.summary}
                 onChange={(e) => updatePersonalInfo('summary', e.target.value)}
                 placeholder="Your polished, ATS-friendly summary will appear here. You can edit it anytime."
@@ -663,9 +702,7 @@ export const FormWizard: React.FC<FormWizardProps> = ({ onSwitchToPreview }) => 
               <span className="text-xs font-bold text-slate-700">Technical & Core Skills</span>
               <button
                 type="button"
-                onClick={() =>
-                  addSkill({ id: Date.now().toString(), name: '', level: 'Professional' })
-                }
+                onClick={() => addSkill({ id: createId(), name: '', level: 'Professional' })}
                 className="px-2.5 py-1 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
@@ -673,26 +710,27 @@ export const FormWizard: React.FC<FormWizardProps> = ({ onSwitchToPreview }) => 
               </button>
             </div>
 
+            {resumeData.skills.length === 0 && (
+              <EmptyStepHint>
+                No skills yet. Click &quot;Add Skill&quot; and add one skill per row (aim for 5 or more).
+              </EmptyStepHint>
+            )}
+
             <div className="space-y-2">
               {resumeData.skills.map((skill) => (
                 <div key={skill.id} className="flex items-center gap-2">
                   <input
                     type="text"
+                    aria-label="Skill name"
                     value={skill.name}
                     placeholder="e.g. Java 21, Spring Boot, Docker, PostgreSQL"
-                    onChange={(e) => {
-                      const updated = resumeData.skills.map((s) =>
-                        s.id === skill.id ? { ...s, name: e.target.value } : s
-                      );
-                      useResumeStore.setState({
-                        resumeData: { ...resumeData, skills: updated },
-                      });
-                    }}
+                    onChange={(e) => updateSkill(skill.id, { name: e.target.value })}
                     className="flex-1 text-xs p-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
                   />
                   <button
                     type="button"
                     onClick={() => removeSkill(skill.id)}
+                    aria-label={`Remove skill ${skill.name}`.trim()}
                     className="p-2 text-slate-400 hover:text-red-600 transition cursor-pointer"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -712,7 +750,7 @@ export const FormWizard: React.FC<FormWizardProps> = ({ onSwitchToPreview }) => 
                 type="button"
                 onClick={() =>
                   addExperience({
-                    id: Date.now().toString(),
+                    id: createId(),
                     company: '',
                     role: '',
                     startDate: '',
@@ -729,12 +767,19 @@ export const FormWizard: React.FC<FormWizardProps> = ({ onSwitchToPreview }) => 
               </button>
             </div>
 
-            {resumeData.experiences.map((exp, idx) => (
+            {resumeData.experiences.length === 0 && (
+              <EmptyStepHint>
+                No work experience yet. Freshers can skip this step and focus on Projects and Education.
+              </EmptyStepHint>
+            )}
+
+            {resumeData.experiences.map((exp) => (
               <div key={exp.id} className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2.5">
                 <div className="flex justify-between items-start">
-                  <div className="grid grid-cols-2 gap-2 flex-1 mr-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 flex-1 mr-2">
                     <input
                       type="text"
+                      aria-label="Company name"
                       placeholder="Company Name"
                       value={exp.company}
                       onChange={(e) => updateExperience(exp.id, { company: e.target.value })}
@@ -742,6 +787,7 @@ export const FormWizard: React.FC<FormWizardProps> = ({ onSwitchToPreview }) => 
                     />
                     <input
                       type="text"
+                      aria-label="Job title"
                       placeholder="Job Title / Role"
                       value={exp.role}
                       onChange={(e) => updateExperience(exp.id, { role: e.target.value })}
@@ -751,6 +797,7 @@ export const FormWizard: React.FC<FormWizardProps> = ({ onSwitchToPreview }) => 
                   <button
                     type="button"
                     onClick={() => removeExperience(exp.id)}
+                    aria-label="Remove this position"
                     className="p-1.5 text-slate-400 hover:text-red-600 transition cursor-pointer"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -760,6 +807,7 @@ export const FormWizard: React.FC<FormWizardProps> = ({ onSwitchToPreview }) => 
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <input
                     type="text"
+                    aria-label="Start date"
                     placeholder="Start (e.g. 2022)"
                     value={exp.startDate}
                     onChange={(e) => updateExperience(exp.id, { startDate: e.target.value })}
@@ -767,49 +815,84 @@ export const FormWizard: React.FC<FormWizardProps> = ({ onSwitchToPreview }) => 
                   />
                   <input
                     type="text"
-                    placeholder="End (or 'Present')"
-                    value={exp.endDate}
+                    aria-label="End date"
+                    placeholder="End (e.g. 2024)"
+                    value={exp.isCurrent ? 'Present' : exp.endDate}
+                    disabled={exp.isCurrent}
                     onChange={(e) => updateExperience(exp.id, { endDate: e.target.value })}
-                    className="p-2 border border-slate-200 rounded-lg bg-white outline-none text-xs"
+                    className="p-2 border border-slate-200 rounded-lg bg-white outline-none text-xs disabled:bg-slate-100 disabled:text-slate-500"
                   />
                 </div>
+                <label className="flex w-fit items-center gap-2 text-[11px] font-semibold text-slate-600 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={exp.isCurrent}
+                    onChange={(e) => updateExperience(exp.id, { isCurrent: e.target.checked })}
+                    className="h-3.5 w-3.5 accent-blue-600"
+                  />
+                  I currently work here
+                </label>
 
                 <div>
-                  <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center justify-between gap-2 mb-1">
                     <span className="text-[11px] font-bold text-slate-600">Your Rough Notes:</span>
                     <button
                       type="button"
-                      onClick={() => handleEnhanceExperience(idx)}
-                      disabled={enhancingIndex === idx || !exp.rawDetails.trim()}
-                      className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-600 hover:text-blue-700 disabled:opacity-50 cursor-pointer"
+                      onClick={() => handleEnhanceExperience(exp.id)}
+                      disabled={enhancingId === exp.id || !exp.rawDetails.trim()}
+                      title={!exp.rawDetails.trim() ? 'Write a few notes first' : undefined}
+                      className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-600 hover:text-blue-700 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
                     >
-                      {enhancingIndex === idx ? (
+                      {enhancingId === exp.id ? (
                         <Loader2 className="w-3 h-3 animate-spin" />
                       ) : (
                         <Sparkles className="w-3 h-3 text-yellow-500" />
                       )}
-                      <span>AI Enhance (Google X-Y-Z)</span>
+                      <span>{enhancingId === exp.id ? 'Writing bullets…' : 'AI Enhance (Google X-Y-Z)'}</span>
                     </button>
                   </div>
                   <textarea
                     rows={2}
+                    aria-label="Rough notes about this role"
                     value={exp.rawDetails}
                     placeholder="Describe what you built, architecture, technologies used..."
                     onChange={(e) => updateExperience(exp.id, { rawDetails: e.target.value })}
                     className="w-full text-xs p-2 border border-slate-200 rounded-lg bg-white outline-none"
                   />
+                  {enhanceErrors[exp.id] && (
+                    <p role="alert" className="mt-1 flex items-start gap-1 text-[11px] text-rose-700">
+                      <AlertCircle className="mt-0.5 h-3 w-3 shrink-0" />
+                      {enhanceErrors[exp.id]}
+                    </p>
+                  )}
                 </div>
 
                 {exp.enhancedBullets && exp.enhancedBullets.length > 0 && (
-                  <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-lg text-xs space-y-1">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 flex items-center gap-1">
-                      <CheckCircle2 className="w-3 h-3" /> AI Enhanced Bullets
-                    </span>
-                    <ul className="list-disc pl-4 space-y-1 text-slate-700">
-                      {exp.enhancedBullets.map((b, bIdx) => (
-                        <li key={bIdx}>{b}</li>
-                      ))}
-                    </ul>
+                  <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-lg text-xs space-y-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3" /> Resume Bullets (one per line)
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => updateExperience(exp.id, { enhancedBullets: [] })}
+                        className="text-[10px] font-bold text-emerald-800 hover:text-rose-700 cursor-pointer"
+                      >
+                        Use my notes instead
+                      </button>
+                    </div>
+                    <textarea
+                      rows={Math.max(3, exp.enhancedBullets.length + 1)}
+                      aria-label="Resume bullet points, one per line"
+                      value={exp.enhancedBullets.join('\n')}
+                      onChange={(e) =>
+                        updateExperience(exp.id, { enhancedBullets: e.target.value.split('\n') })
+                      }
+                      className="w-full rounded-lg border border-emerald-200 bg-white p-2 text-xs leading-relaxed text-slate-700 outline-none focus:ring-2 focus:ring-emerald-500/20"
+                    />
+                    <p className="text-[10px] text-emerald-800/80">
+                      These bullets appear on your resume. Edit them freely and check every fact.
+                    </p>
                   </div>
                 )}
               </div>
@@ -826,7 +909,7 @@ export const FormWizard: React.FC<FormWizardProps> = ({ onSwitchToPreview }) => 
                 type="button"
                 onClick={() =>
                   addProject({
-                    id: Date.now().toString(),
+                    id: createId(),
                     title: '',
                     techStack: [],
                     description: '',
@@ -839,11 +922,18 @@ export const FormWizard: React.FC<FormWizardProps> = ({ onSwitchToPreview }) => 
               </button>
             </div>
 
+            {resumeData.projects.length === 0 && (
+              <EmptyStepHint>
+                No projects yet. College, personal, or work projects all count as real evidence.
+              </EmptyStepHint>
+            )}
+
             {resumeData.projects.map((proj) => (
               <div key={proj.id} className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2.5">
                 <div className="flex justify-between items-center">
                   <input
                     type="text"
+                    aria-label="Project title"
                     placeholder="Project Title"
                     value={proj.title}
                     onChange={(e) => updateProject(proj.id, { title: e.target.value })}
@@ -852,6 +942,7 @@ export const FormWizard: React.FC<FormWizardProps> = ({ onSwitchToPreview }) => 
                   <button
                     type="button"
                     onClick={() => removeProject(proj.id)}
+                    aria-label="Remove this project"
                     className="p-1.5 text-slate-400 hover:text-red-600 cursor-pointer"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -860,19 +951,19 @@ export const FormWizard: React.FC<FormWizardProps> = ({ onSwitchToPreview }) => 
 
                 <input
                   type="text"
+                  aria-label="Tech stack, comma separated"
                   placeholder="Tech Stack (comma separated: Java 21, Spring Boot, Docker)"
                   value={(proj.techStack || []).join(', ')}
                   onChange={(e) =>
-                    updateProject(proj.id, {
-                      techStack: e.target.value.split(',').map((s) => s.trim()),
-                    })
+                    updateProject(proj.id, { techStack: splitCommaList(e.target.value) })
                   }
                   className="w-full text-xs p-2 border border-slate-200 rounded-lg bg-white outline-none"
                 />
 
                 <textarea
                   rows={2}
-                  placeholder="What problem did it solve? What metrics did you achieve?"
+                  aria-label="Project description"
+                  placeholder="What problem did it solve? What did you build, and what was the result?"
                   value={proj.description}
                   onChange={(e) => updateProject(proj.id, { description: e.target.value })}
                   className="w-full text-xs p-2 border border-slate-200 rounded-lg bg-white outline-none"
@@ -899,7 +990,7 @@ export const FormWizard: React.FC<FormWizardProps> = ({ onSwitchToPreview }) => 
                     type="button"
                     onClick={() =>
                       addEducation({
-                        id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+                        id: createId(),
                         institution: '',
                         degree,
                         fieldOfStudy: '',
@@ -916,7 +1007,7 @@ export const FormWizard: React.FC<FormWizardProps> = ({ onSwitchToPreview }) => 
                   type="button"
                   onClick={() =>
                     addEducation({
-                      id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+                      id: createId(),
                       institution: '',
                       degree: '',
                       fieldOfStudy: '',
@@ -932,6 +1023,12 @@ export const FormWizard: React.FC<FormWizardProps> = ({ onSwitchToPreview }) => 
               </div>
             </div>
 
+            {resumeData.education.length === 0 && (
+              <EmptyStepHint>
+                No education added yet. Use the buttons above to add a degree, Class 10, or Class 12.
+              </EmptyStepHint>
+            )}
+
             {resumeData.education.map((edu) => (
               <div key={edu.id} className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
                 <div className="flex justify-between items-center">
@@ -946,6 +1043,7 @@ export const FormWizard: React.FC<FormWizardProps> = ({ onSwitchToPreview }) => 
                   <button
                     type="button"
                     onClick={() => removeEducation(edu.id)}
+                    aria-label="Remove this qualification"
                     className="p-1.5 text-slate-400 hover:text-red-600 cursor-pointer"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -999,7 +1097,7 @@ export const FormWizard: React.FC<FormWizardProps> = ({ onSwitchToPreview }) => 
                 type="button"
                 onClick={() =>
                   addCertification({
-                    id: Date.now().toString(),
+                    id: createId(),
                     name: '',
                     issuer: '',
                   })
@@ -1010,39 +1108,33 @@ export const FormWizard: React.FC<FormWizardProps> = ({ onSwitchToPreview }) => 
                 <span>Add Certification</span>
               </button>
             </div>
+            {(resumeData.certifications || []).length === 0 && (
+              <EmptyStepHint>
+                Optional. Add licenses or certificates you actually hold. Empty sections stay hidden on the resume.
+              </EmptyStepHint>
+            )}
             {(resumeData.certifications || []).map((cert) => (
               <div key={cert.id} className="flex gap-2 items-center">
                 <input
                   type="text"
+                  aria-label="Certification name"
                   placeholder="Certification Name"
                   value={cert.name}
-                  onChange={(e) => {
-                    const updated = (resumeData.certifications || []).map((c) =>
-                      c.id === cert.id ? { ...c, name: e.target.value } : c
-                    );
-                    useResumeStore.setState({
-                      resumeData: { ...resumeData, certifications: updated },
-                    });
-                  }}
-                  className="flex-1 text-xs p-2.5 border border-slate-200 rounded-xl outline-none"
+                  onChange={(e) => updateCertification(cert.id, { name: e.target.value })}
+                  className="min-w-0 flex-1 text-xs p-2.5 border border-slate-200 rounded-xl outline-none"
                 />
                 <input
                   type="text"
+                  aria-label="Issuer"
                   placeholder="Issuer"
                   value={cert.issuer}
-                  onChange={(e) => {
-                    const updated = (resumeData.certifications || []).map((c) =>
-                      c.id === cert.id ? { ...c, issuer: e.target.value } : c
-                    );
-                    useResumeStore.setState({
-                      resumeData: { ...resumeData, certifications: updated },
-                    });
-                  }}
-                  className="w-36 text-xs p-2.5 border border-slate-200 rounded-xl outline-none"
+                  onChange={(e) => updateCertification(cert.id, { issuer: e.target.value })}
+                  className="w-28 sm:w-36 text-xs p-2.5 border border-slate-200 rounded-xl outline-none"
                 />
                 <button
                   type="button"
                   onClick={() => removeCertification(cert.id)}
+                  aria-label="Remove this certification"
                   className="p-2 text-slate-400 hover:text-red-600 cursor-pointer"
                 >
                   <Trash2 className="w-4 h-4" />
@@ -1061,7 +1153,7 @@ export const FormWizard: React.FC<FormWizardProps> = ({ onSwitchToPreview }) => 
                 type="button"
                 onClick={() =>
                   addAchievement({
-                    id: Date.now().toString(),
+                    id: createId(),
                     title: '',
                     description: '',
                   })
@@ -1072,26 +1164,26 @@ export const FormWizard: React.FC<FormWizardProps> = ({ onSwitchToPreview }) => 
                 <span>Add Achievement</span>
               </button>
             </div>
+            {(resumeData.achievements || []).length === 0 && (
+              <EmptyStepHint>
+                Optional. Add awards, ranks, or milestones. Empty sections stay hidden on the resume.
+              </EmptyStepHint>
+            )}
             {(resumeData.achievements || []).map((ach) => (
               <div key={ach.id} className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
                 <div className="flex justify-between items-center">
                   <input
                     type="text"
+                    aria-label="Achievement title"
                     placeholder="Achievement Title"
                     value={ach.title}
-                    onChange={(e) => {
-                      const updated = (resumeData.achievements || []).map((a) =>
-                        a.id === ach.id ? { ...a, title: e.target.value } : a
-                      );
-                      useResumeStore.setState({
-                        resumeData: { ...resumeData, achievements: updated },
-                      });
-                    }}
+                    onChange={(e) => updateAchievement(ach.id, { title: e.target.value })}
                     className="text-xs p-2 border border-slate-200 rounded-lg bg-white flex-1 mr-2 outline-none font-bold"
                   />
                   <button
                     type="button"
                     onClick={() => removeAchievement(ach.id)}
+                    aria-label="Remove this achievement"
                     className="p-1.5 text-slate-400 hover:text-red-600 cursor-pointer"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -1099,20 +1191,28 @@ export const FormWizard: React.FC<FormWizardProps> = ({ onSwitchToPreview }) => 
                 </div>
                 <input
                   type="text"
+                  aria-label="Achievement details"
                   placeholder="Details / Description"
                   value={ach.description}
-                  onChange={(e) => {
-                    const updated = (resumeData.achievements || []).map((a) =>
-                      a.id === ach.id ? { ...a, description: e.target.value } : a
-                    );
-                    useResumeStore.setState({
-                      resumeData: { ...resumeData, achievements: updated },
-                    });
-                  }}
+                  onChange={(e) => updateAchievement(ach.id, { description: e.target.value })}
                   className="w-full text-xs p-2 border border-slate-200 rounded-lg bg-white outline-none"
                 />
               </div>
             ))}
+
+            <div className="rounded-xl border border-blue-100 bg-blue-50/60 p-3 text-[11px] leading-5 text-blue-900">
+              <strong>Last step done.</strong> Check the live preview, try a few templates, then use
+              &quot;Download PDF&quot; at the top of the page.
+              {onSwitchToPreview && (
+                <button
+                  type="button"
+                  onClick={onSwitchToPreview}
+                  className="lg:hidden ml-1 font-bold underline underline-offset-2 cursor-pointer"
+                >
+                  Open preview
+                </button>
+              )}
+            </div>
           </div>
         )}
       </div>

@@ -1,24 +1,63 @@
 @import "tailwindcss";
 
+/* Use the Geist fonts loaded in layout.tsx for every `font-sans` / `font-mono` class */
+@theme inline {
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
+}
+
+/* Landing page motion: `animate-marquee` (role ticker) and `animate-shine` (gradient text) */
+@theme {
+  --animate-marquee: marquee 38s linear infinite;
+  --animate-shine: shine 7s linear infinite;
+
+  @keyframes marquee {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(-50%);
+    }
+  }
+
+  @keyframes shine {
+    to {
+      background-position: 200% center;
+    }
+  }
+}
+
 @layer base {
   * {
     box-sizing: border-box;
   }
+  html {
+    scroll-behavior: smooth;
+  }
   body {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
   }
 }
 
 /* =========================================================
    STABLE NATIVE PRINT / PDF ENGINE (ZERO BLANK PAGES)
    ========================================================= */
-@media print {
-  @page {
-    size: A4 portrait;
-    margin: 0mm;
-  }
 
+/* Kept outside @media print: a zero page margin stops browsers from adding
+   their own URL / date / page-number text to the PDF. */
+@page {
+  size: A4 portrait;
+  margin: 0mm;
+}
+
+@media print {
   /* Force browser to print exact colors, badges, and lines */
   *,
   *::before,
@@ -43,7 +82,8 @@
     overflow: visible !important;
   }
 
-  main {
+  /* Only the editor page wrapper. Template <main> elements keep their own padding. */
+  .print-shell {
     padding: 0 !important;
     margin: 0 !important;
     width: 100% !important;

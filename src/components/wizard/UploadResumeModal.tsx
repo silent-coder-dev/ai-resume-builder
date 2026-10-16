@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useResumeStore } from '@/store/useResumeStore';
-import { normalizeResumeData } from '@/utils/normalizeResumeData';
+import { hasResumeContent } from '@/utils/resumeContent';
+import { parseResumePdf, validateResumePdf } from '@/utils/resumeImport';
 import {
   Upload,
   X,
@@ -20,61 +21,47 @@ interface UploadResumeModalProps {
 }
 
 export const UploadResumeModal: React.FC<UploadResumeModalProps> = ({ isOpen, onClose }) => {
-  const { setResumeData } = useResumeStore();
+  const resumeData = useResumeStore((state) => state.resumeData);
+  const setResumeData = useResumeStore((state) => state.setResumeData);
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const willReplaceDraft = hasResumeContent(resumeData);
 
-  const isValidPdfFile = (selectedFile: File) => {
-    const isPdfMime =
-      selectedFile.type === 'application/pdf' ||
-      selectedFile.type === 'application/x-pdf' ||
-      selectedFile.type === '';
-    const hasPdfExtension = selectedFile.name.toLowerCase().endsWith('.pdf');
-    return isPdfMime || hasPdfExtension;
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const resetModal = () => {
+    setFile(null);
     setError(null);
     setSuccess(false);
-    const selectedFile = e.target.files?.[0];
+    setLoading(false);
+    onClose();
+  };
 
+  useEffect(() => {
+    if (!isOpen || loading) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      setFile(null);
+      setError(null);
+      setSuccess(false);
+      onClose();
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [isOpen, loading, onClose]);
+
+  const selectFile = async (selectedFile: File | undefined) => {
+    setError(null);
+    setSuccess(false);
     if (!selectedFile) return;
-
-    if (!isValidPdfFile(selectedFile)) {
-      setError('Please upload a valid PDF document (.pdf).');
-      return;
+    try {
+      await validateResumePdf(selectedFile);
+      setFile(selectedFile);
+    } catch (validationError) {
+      setFile(null);
+      setError(validationError instanceof Error ? validationError.message : 'Please choose a PDF file.');
     }
-
-    if (selectedFile.size > 8 * 1024 * 1024) {
-      setError('File size must be less than 8MB.');
-      return;
-    }
-
-    setFile(selectedFile);
-  };
-
-  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    setError(null);
-    setSuccess(false);
-
-    const droppedFile = e.dataTransfer.files?.[0];
-    if (!droppedFile) return;
-
-    if (!isValidPdfFile(droppedFile)) {
-      setError('Please upload a valid PDF document (.pdf).');
-      return;
-    }
-
-    if (droppedFile.size > 8 * 1024 * 1024) {
-      setError('File size must be less than 8MB.');
-      return;
-    }
-
-    setFile(droppedFile);
   };
 
   const handleUploadAndParse = async () => {
@@ -84,36 +71,8 @@ export const UploadResumeModal: React.FC<UploadResumeModalProps> = ({ isOpen, on
     setError(null);
 
     try {
-      const base64Data = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const result = reader.result as string;
-          const base64 = result.includes(',') ? result.split(',')[1] : result;
-          resolve(base64);
-        };
-        reader.onerror = (err) => reject(err);
-        reader.readAsDataURL(file);
-      });
-
-      const res = await fetch('/api/ai', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'parse-resume-pdf',
-          payload: {
-            base64Pdf: base64Data,
-            fileName: file.name,
-          },
-        }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok || !data.result) {
-        throw new Error(data.error || 'Failed to parse resume. Please try a different PDF.');
-      }
-
-      setResumeData(normalizeResumeData(data.result));
+      const parsed = await parseResumePdf(file);
+      setResumeData(parsed);
       setSuccess(true);
 
       setTimeout(() => {
@@ -133,21 +92,16 @@ export const UploadResumeModal: React.FC<UploadResumeModalProps> = ({ isOpen, on
     }
   };
 
-  const resetModal = () => {
-    setFile(null);
-    setError(null);
-    setSuccess(false);
-    setLoading(false);
-    onClose();
-  };
-
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/60 backdrop-blur-xs">
+        <div className="no-print fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/60 backdrop-blur-xs">
           <div className="fixed inset-0" onClick={!loading ? resetModal : undefined} />
 
           <motion.div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="upload-resume-title"
             initial={{ opacity: 0, scale: 0.95, y: 15 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 15 }}
@@ -161,11 +115,11 @@ export const UploadResumeModal: React.FC<UploadResumeModalProps> = ({ isOpen, on
                   <FileUp className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="text-sm sm:text-base font-bold text-slate-900 leading-tight">
-                    Upload Existing Resume
+                  <h3 id="upload-resume-title" className="text-sm sm:text-base font-bold text-slate-900 leading-tight">
+                    Import a Resume PDF
                   </h3>
                   <p className="text-[11px] text-slate-500">
-                    Upload a PDF and AI will extract fields automatically
+                    AI copies only what is written in your PDF into the editor
                   </p>
                 </div>
               </div>
@@ -173,6 +127,7 @@ export const UploadResumeModal: React.FC<UploadResumeModalProps> = ({ isOpen, on
                 <button
                   type="button"
                   onClick={resetModal}
+                  aria-label="Close import"
                   className="p-1 rounded-lg text-slate-400 hover:text-slate-700 bg-white border border-slate-200 transition cursor-pointer"
                 >
                   <X className="w-4 h-4" />
@@ -186,15 +141,29 @@ export const UploadResumeModal: React.FC<UploadResumeModalProps> = ({ isOpen, on
                 ref={fileInputRef}
                 type="file"
                 accept=".pdf,application/pdf"
-                onChange={handleFileChange}
+                onChange={(event) => {
+                  void selectFile(event.target.files?.[0]);
+                  event.target.value = '';
+                }}
                 className="hidden"
               />
 
               <div
+                role="button"
+                tabIndex={0}
                 onDragOver={(e) => e.preventDefault()}
-                onDrop={handleDrop}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  if (!loading) void selectFile(e.dataTransfer.files?.[0]);
+                }}
                 onClick={() => !loading && fileInputRef.current?.click()}
-                className={`border-2 border-dashed rounded-2xl p-6 text-center transition cursor-pointer flex flex-col items-center justify-center ${
+                onKeyDown={(e) => {
+                  if ((e.key === 'Enter' || e.key === ' ') && !loading) {
+                    e.preventDefault();
+                    fileInputRef.current?.click();
+                  }
+                }}
+                className={`border-2 border-dashed rounded-2xl p-6 text-center transition cursor-pointer flex flex-col items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
                   file
                     ? 'border-blue-500 bg-blue-50/30'
                     : 'border-slate-300 hover:border-blue-400 hover:bg-slate-50'
@@ -228,17 +197,23 @@ export const UploadResumeModal: React.FC<UploadResumeModalProps> = ({ isOpen, on
                 )}
               </div>
 
+              {willReplaceDraft && !success && (
+                <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-[11px] leading-5 text-amber-900">
+                  Importing replaces the resume that is open in the editor now.
+                </p>
+              )}
+
               {error && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 flex items-center gap-2">
+                <div role="alert" className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 shrink-0 text-red-500" />
                   <span>{error}</span>
                 </div>
               )}
 
               {success && (
-                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-center gap-2">
+                <div role="status" className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
-                  <span>Resume parsed successfully. Loading into canvas...</span>
+                  <span>Resume imported. Please check every section for accuracy.</span>
                 </div>
               )}
             </div>
@@ -256,13 +231,13 @@ export const UploadResumeModal: React.FC<UploadResumeModalProps> = ({ isOpen, on
               <button
                 type="button"
                 onClick={handleUploadAndParse}
-                disabled={!file || loading}
+                disabled={!file || loading || success}
                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer shadow-xs disabled:opacity-50"
               >
                 {loading ? (
                   <>
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    <span>Parsing Resume with AI...</span>
+                    <span>Reading your PDF…</span>
                   </>
                 ) : (
                   <>

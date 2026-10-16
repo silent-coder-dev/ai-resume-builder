@@ -1,22 +1,47 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { CheckCircle2, LoaderCircle, Sparkles, X } from 'lucide-react';
 import { useResumeStore } from '@/store/useResumeStore';
 import type { ResumeData } from '@/types/resume';
+import { callAi } from '@/utils/aiClient';
 import { normalizeResumeData } from '@/utils/normalizeResumeData';
+import { hasResumeContent } from '@/utils/resumeContent';
 
-function hasResumeContent(data: ResumeData): boolean {
-  return Boolean(
-    data.personalInfo.fullName.trim() ||
-      data.personalInfo.targetRole.trim() ||
-      data.personalInfo.summary.trim() ||
-      data.skills.length ||
-      data.experiences.some((item) => item.rawDetails.trim() || item.enhancedBullets?.length) ||
-      data.projects.some((item) => item.title.trim() || item.description.trim()) ||
-      data.education.some((item) => item.degree.trim() || item.institution.trim())
-  );
+const byId = <T extends { id: string }>(items: T[] = []) =>
+  new Map(items.map((item) => [item.id, item]));
+
+// Copies only the AI's wording changes onto the latest resume, matched by ID.
+// Everything else (new rows, edits made while waiting, facts) stays untouched.
+function applyNarrativeEdits(current: ResumeData, optimized: ResumeData): ResumeData {
+  const experiences = byId(optimized.experiences);
+  const projects = byId(optimized.projects);
+  const achievements = byId(optimized.achievements);
+
+  return {
+    ...current,
+    personalInfo: {
+      ...current.personalInfo,
+      summary: current.personalInfo.summary.trim()
+        ? optimized.personalInfo.summary || current.personalInfo.summary
+        : current.personalInfo.summary,
+    },
+    experiences: current.experiences.map((item) => {
+      const suggestion = experiences.get(item.id);
+      return suggestion
+        ? { ...item, rawDetails: suggestion.rawDetails, enhancedBullets: suggestion.enhancedBullets }
+        : item;
+    }),
+    projects: current.projects.map((item) => {
+      const suggestion = projects.get(item.id);
+      return suggestion ? { ...item, description: suggestion.description } : item;
+    }),
+    achievements: (current.achievements ?? []).map((item) => {
+      const suggestion = achievements.get(item.id);
+      return suggestion ? { ...item, description: suggestion.description } : item;
+    }),
+  };
 }
 
 interface OptimizationChange {
@@ -35,23 +60,28 @@ function getOptimizationChanges(
     if (before !== after) changes.push({ id, section, before: before || 'Not provided', after: after || 'Not provided' });
   };
 
+  // Changes are matched by ID only, so a missing or reordered entry is never
+  // compared against the wrong item.
   addChange('summary', 'Professional summary', original.personalInfo.summary, optimized.personalInfo.summary);
-  original.experiences.forEach((item, index) => {
-    const suggestion = optimized.experiences.find((entry) => entry.id === item.id) ?? optimized.experiences[index];
+  const experiences = byId(optimized.experiences);
+  original.experiences.forEach((item) => {
+    const suggestion = experiences.get(item.id);
     if (!suggestion) return;
-    const label = `${item.role || item.company || 'Experience'}${item.company ? ` · ${item.company}` : ''}`;
+    const label = `${item.role || item.company || 'Experience'}${item.role && item.company ? ` · ${item.company}` : ''}`;
     addChange(`${item.id}-details`, `${label} · details`, item.rawDetails, suggestion.rawDetails);
     const oldBullets = (item.enhancedBullets ?? []).join('\n');
     const newBullets = (suggestion.enhancedBullets ?? []).join('\n');
     addChange(`${item.id}-bullets`, `${label} · bullets`, oldBullets, newBullets);
   });
-  original.projects.forEach((item, index) => {
-    const suggestion = optimized.projects.find((entry) => entry.id === item.id) ?? optimized.projects[index];
-    if (suggestion) addChange(item.id, `${item.title || 'Project'} · description`, item.description, suggestion.description);
+  const projects = byId(optimized.projects);
+  original.projects.forEach((item) => {
+    const suggestion = projects.get(item.id);
+    if (suggestion) addChange(`${item.id}-project`, `${item.title || 'Project'} · description`, item.description, suggestion.description);
   });
-  (original.achievements ?? []).forEach((item, index) => {
-    const suggestion = optimized.achievements?.find((entry) => entry.id === item.id) ?? optimized.achievements?.[index];
-    if (suggestion) addChange(item.id, `${item.title || 'Achievement'} · details`, item.description, suggestion.description);
+  const achievements = byId(optimized.achievements);
+  (original.achievements ?? []).forEach((item) => {
+    const suggestion = achievements.get(item.id);
+    if (suggestion) addChange(`${item.id}-achievement`, `${item.title || 'Achievement'} · details`, item.description, suggestion.description);
   });
   return changes;
 }
@@ -62,21 +92,23 @@ export function ResumeOptimizeButton() {
   const [error, setError] = useState<string | null>(null);
   const [optimized, setOptimized] = useState<ResumeData | null>(null);
   const changes = optimized ? getOptimizationChanges(resumeData, optimized) : [];
+  const canOptimize = hasResumeContent(resumeData);
+
+  useEffect(() => {
+    if (!optimized) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOptimized(null);
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [optimized]);
 
   const handleOptimize = async () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch('/api/ai', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'optimize-resume', payload: { resumeData } }),
-      });
-      const data: { result?: unknown; error?: string } = await response.json();
-      if (!response.ok || !data.result) {
-        throw new Error(data.error || 'Resume optimization could not be completed.');
-      }
-      setOptimized(normalizeResumeData(data.result));
+      const result = await callAi<unknown>('optimize-resume', { resumeData });
+      setOptimized(normalizeResumeData(result));
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Resume optimization failed.');
     } finally {
@@ -86,7 +118,7 @@ export function ResumeOptimizeButton() {
 
   const applyOptimizedResume = () => {
     if (!optimized) return;
-    setResumeData(optimized);
+    setResumeData(applyNarrativeEdits(useResumeStore.getState().resumeData, optimized));
     setOptimized(null);
   };
 
@@ -97,8 +129,8 @@ export function ResumeOptimizeButton() {
         <motion.button
           type="button"
           onClick={() => void handleOptimize()}
-          disabled={loading || !hasResumeContent(resumeData)}
-          title={!hasResumeContent(resumeData) ? 'Add resume content before optimizing.' : undefined}
+          disabled={loading || !canOptimize}
+          title={!canOptimize ? 'Add resume content before optimizing.' : undefined}
           whileHover={!loading ? { y: -1 } : undefined}
           whileTap={!loading ? { scale: 0.98 } : undefined}
           className="inline-flex items-center gap-2 rounded-xl border border-violet-200 bg-white px-3.5 py-2 text-xs font-bold text-violet-800 shadow-sm transition hover:border-violet-300 hover:bg-violet-50 disabled:cursor-not-allowed disabled:opacity-50"
@@ -185,9 +217,9 @@ export function ResumeOptimizeButton() {
               <div className="mt-4 rounded-xl border border-emerald-100 bg-emerald-50/60 p-4">
                 <p className="text-[10px] font-extrabold text-emerald-900">Preserved resume sections</p>
                 <p className="mt-1 text-[10px] leading-5 text-emerald-800">
-                  {optimized.experiences.length} experience entries · {optimized.projects.length} projects ·{' '}
-                  {optimized.skills.length} skills · {optimized.education.length} education entries ·{' '}
-                  {optimized.certifications?.length ?? 0} certifications
+                  {resumeData.experiences.length} experience entries · {resumeData.projects.length} projects ·{' '}
+                  {resumeData.skills.length} skills · {resumeData.education.length} education entries ·{' '}
+                  {resumeData.certifications?.length ?? 0} certifications
                 </p>
                 <p className="mt-2 text-[10px] leading-5 text-slate-600">
                   After applying, inspect every section in the editor and correct anything that does

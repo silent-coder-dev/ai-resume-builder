@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
+import { persist, createJSONStorage, type StateStorage } from 'zustand/middleware';
 import {
   ResumeData,
   SectionItem,
@@ -16,27 +16,33 @@ import {
 
 export type { SectionKey, SectionItem };
 
-const initialResumeData: ResumeData = {
-  personalInfo: {
-    fullName: '',
-    targetRole: '',
-    email: '',
-    phone: '',
-    location: '',
-    summary: '',
-    yearsOfExperience: 0,
-    experienceField: '',
-  },
-  skills: [],
-  experiences: [],
-  projects: [],
-  education: [],
-  certifications: [],
-  achievements: [],
-  links: [],
-};
+export const RESUME_STORE_KEY = 'ai-resume-builder-store';
+// Older builds saved drafts under this key. Drafts are moved over on first load.
+const LEGACY_STORE_KEYS = ['ai_resume_studio_store'];
 
-const defaultSectionOrder: SectionItem[] = [
+export function createBlankResume(): ResumeData {
+  return {
+    personalInfo: {
+      fullName: '',
+      targetRole: '',
+      email: '',
+      phone: '',
+      location: '',
+      summary: '',
+      yearsOfExperience: 0,
+      experienceField: '',
+    },
+    skills: [],
+    experiences: [],
+    projects: [],
+    education: [],
+    certifications: [],
+    achievements: [],
+    links: [],
+  };
+}
+
+export const DEFAULT_SECTION_ORDER: readonly SectionItem[] = [
   { id: 'summary', label: 'Professional Summary', visible: true },
   { id: 'skills', label: 'Skills & Competencies', visible: true },
   { id: 'experience', label: 'Work Experience', visible: true },
@@ -46,29 +52,113 @@ const defaultSectionOrder: SectionItem[] = [
   { id: 'achievements', label: 'Achievements', visible: true },
 ];
 
+const defaultSectionOrder = (): SectionItem[] => DEFAULT_SECTION_ORDER.map((section) => ({ ...section }));
+
+const listOrEmpty = <T,>(value: T[] | undefined): T[] => (Array.isArray(value) ? value : []);
+
+// Fills any missing fields so older drafts and partial imports never crash the editor.
+function withResumeDefaults(data: Partial<ResumeData> | null | undefined): ResumeData {
+  const blank = createBlankResume();
+  return {
+    personalInfo: { ...blank.personalInfo, ...(data?.personalInfo ?? {}) },
+    skills: listOrEmpty(data?.skills),
+    experiences: listOrEmpty(data?.experiences),
+    projects: listOrEmpty(data?.projects),
+    education: listOrEmpty(data?.education),
+    certifications: listOrEmpty(data?.certifications),
+    achievements: listOrEmpty(data?.achievements),
+    links: listOrEmpty(data?.links),
+  };
+}
+
+// Keeps a saved section order valid: known sections only, no duplicates, none missing.
+function normalizeSectionOrder(value: unknown): SectionItem[] {
+  const defaults = new Map(DEFAULT_SECTION_ORDER.map((section) => [section.id as string, section]));
+  const seen = new Set<SectionKey>();
+  const ordered: SectionItem[] = [];
+
+  if (Array.isArray(value)) {
+    for (const entry of value) {
+      if (typeof entry !== 'object' || entry === null) continue;
+      const { id, visible } = entry as { id?: unknown; visible?: unknown };
+      const base = typeof id === 'string' ? defaults.get(id) : undefined;
+      if (!base || seen.has(base.id)) continue;
+      seen.add(base.id);
+      ordered.push({ ...base, visible: visible !== false });
+    }
+  }
+
+  for (const section of DEFAULT_SECTION_ORDER) {
+    if (!seen.has(section.id)) ordered.push({ ...section });
+  }
+  return ordered;
+}
+
+function getBrowserStorage(): Storage | null {
+  try {
+    return typeof window === 'undefined' ? null : window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
+// localStorage wrapper that never throws (private mode, full quota) and
+// migrates drafts saved under the legacy key.
+const resumeStorage: StateStorage = {
+  getItem: (name) => {
+    const storage = getBrowserStorage();
+    if (!storage) return null;
+    try {
+      const current = storage.getItem(name);
+      if (current !== null) return current;
+      for (const legacyKey of LEGACY_STORE_KEYS) {
+        const legacy = storage.getItem(legacyKey);
+        if (legacy === null) continue;
+        storage.setItem(name, legacy);
+        storage.removeItem(legacyKey);
+        return legacy;
+      }
+    } catch (error) {
+      console.error('Could not read the saved resume draft:', error);
+    }
+    return null;
+  },
+  setItem: (name, value) => {
+    try {
+      getBrowserStorage()?.setItem(name, value);
+    } catch (error) {
+      console.error('Could not save the resume draft in this browser:', error);
+    }
+  },
+  removeItem: (name) => {
+    try {
+      getBrowserStorage()?.removeItem(name);
+    } catch (error) {
+      console.error('Could not clear the saved resume draft:', error);
+    }
+  },
+};
+
 export interface ResumeState {
   resumeData: ResumeData;
   activeTemplate: string;
   accentColor: string;
-  zoomLevel: number;
   sectionOrder: SectionItem[];
 
   // Global Actions
   setResumeData: (data: ResumeData) => void;
   setActiveTemplate: (templateId: string) => void;
   setAccentColor: (color: string) => void;
-  setZoomLevel: (level: number) => void;
   resetToBlank: () => void;
 
   // Section Reorder & Visibility Actions
   setSectionOrder: (order: SectionItem[]) => void;
-  reorderSections: (startIndex: number, endIndex: number) => void;
   moveSection: (startIndex: number, endIndex: number) => void;
   toggleSectionVisibility: (sectionId: SectionKey) => void;
   resetSectionOrder: () => void;
 
   // Personal Info Actions
-  updatePersonalInfo: (field: keyof PersonalInfo, value: any) => void;
+  updatePersonalInfo: <K extends keyof PersonalInfo>(field: K, value: PersonalInfo[K]) => void;
 
   // Links Actions
   addLink: (link: SocialLink) => void;
@@ -106,77 +196,45 @@ export interface ResumeState {
   updateAchievement: (id: string, updatedAch: Partial<Achievement>) => void;
 }
 
+type PersistedResumeState = Pick<
+  ResumeState,
+  'resumeData' | 'activeTemplate' | 'accentColor' | 'sectionOrder'
+>;
+
 export const useResumeStore = create<ResumeState>()(
   persist(
     (set) => ({
-      resumeData: initialResumeData,
+      resumeData: createBlankResume(),
       activeTemplate: 'modern',
       accentColor: '#2563eb',
-      zoomLevel: 1,
-      sectionOrder: defaultSectionOrder,
+      sectionOrder: defaultSectionOrder(),
 
       // Global Actions
-      setResumeData: (data) =>
-        set((state) => ({
-          resumeData: {
-            ...state.resumeData,
-            ...data,
-            personalInfo: {
-              ...state.resumeData.personalInfo,
-              ...(data.personalInfo || {}),
-            },
-            links: data.links || [],
-            skills: data.skills || [],
-            experiences: data.experiences || [],
-            projects: data.projects || [],
-            education: data.education || [],
-            certifications: data.certifications || [],
-            achievements: data.achievements || [],
-          },
-        })),
+      setResumeData: (data) => set({ resumeData: withResumeDefaults(data) }),
 
       setActiveTemplate: (templateId) => set({ activeTemplate: templateId }),
       setAccentColor: (color) => set({ accentColor: color }),
-      setZoomLevel: (level) => set({ zoomLevel: level }),
 
       resetToBlank: () =>
         set({
-          resumeData: {
-            personalInfo: {
-              fullName: '',
-              targetRole: '',
-              email: '',
-              phone: '',
-              location: '',
-              summary: '',
-              yearsOfExperience: 0,
-              experienceField: '',
-            },
-            skills: [],
-            experiences: [],
-            projects: [],
-            education: [],
-            certifications: [],
-            achievements: [],
-            links: [],
-          },
-          sectionOrder: defaultSectionOrder,
+          resumeData: createBlankResume(),
+          sectionOrder: defaultSectionOrder(),
         }),
 
       // Section Reorder & Visibility
-      setSectionOrder: (order) => set({ sectionOrder: order }),
-
-      reorderSections: (startIndex, endIndex) =>
-        set((state) => {
-          const result = Array.from(state.sectionOrder);
-          const [removed] = result.splice(startIndex, 1);
-          result.splice(endIndex, 0, removed);
-          return { sectionOrder: result };
-        }),
+      setSectionOrder: (order) => set({ sectionOrder: normalizeSectionOrder(order) }),
 
       moveSection: (startIndex, endIndex) =>
         set((state) => {
           const result = Array.from(state.sectionOrder);
+          if (
+            startIndex < 0 ||
+            endIndex < 0 ||
+            startIndex >= result.length ||
+            endIndex >= result.length
+          ) {
+            return {};
+          }
           const [removed] = result.splice(startIndex, 1);
           result.splice(endIndex, 0, removed);
           return { sectionOrder: result };
@@ -189,7 +247,7 @@ export const useResumeStore = create<ResumeState>()(
           ),
         })),
 
-      resetSectionOrder: () => set({ sectionOrder: defaultSectionOrder }),
+      resetSectionOrder: () => set({ sectionOrder: defaultSectionOrder() }),
 
       // Personal Info
       updatePersonalInfo: (field, value) =>
@@ -393,8 +451,29 @@ export const useResumeStore = create<ResumeState>()(
         })),
     }),
     {
-      name: 'ai_resume_studio_store',
-      storage: createJSONStorage(() => localStorage),
+      name: RESUME_STORE_KEY,
+      storage: createJSONStorage(() => resumeStorage),
+      partialize: (state): PersistedResumeState => ({
+        resumeData: state.resumeData,
+        activeTemplate: state.activeTemplate,
+        accentColor: state.accentColor,
+        sectionOrder: state.sectionOrder,
+      }),
+      merge: (persisted, current) => {
+        const saved =
+          typeof persisted === 'object' && persisted !== null
+            ? (persisted as Partial<PersistedResumeState>)
+            : {};
+        return {
+          ...current,
+          resumeData: withResumeDefaults(saved.resumeData),
+          activeTemplate:
+            typeof saved.activeTemplate === 'string' ? saved.activeTemplate : current.activeTemplate,
+          accentColor:
+            typeof saved.accentColor === 'string' ? saved.accentColor : current.accentColor,
+          sectionOrder: normalizeSectionOrder(saved.sectionOrder),
+        };
+      },
     }
   )
 );

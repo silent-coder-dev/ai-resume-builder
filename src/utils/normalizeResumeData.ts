@@ -19,15 +19,28 @@ function asText(value: unknown): string {
   return typeof value === 'string' || typeof value === 'number' ? String(value) : '';
 }
 
-function normalizeList<T>(
+function normalizeList<T extends { id: string }>(
   value: unknown,
   normalize: (item: Record<string, unknown>, index: number) => T | null
 ): T[] {
   if (!Array.isArray(value)) return [];
-  return value.flatMap((entry, index) => {
+  const items = value.flatMap((entry, index) => {
     const record = asRecord(entry);
     const normalized = record ? normalize(record, index) : null;
     return normalized ? [normalized] : [];
+  });
+  return withUniqueIds(items);
+}
+
+// AI output sometimes repeats an ID inside one section. Editing by ID would
+// then change two entries at once, so repeated IDs get a unique suffix.
+function withUniqueIds<T extends { id: string }>(items: T[]): T[] {
+  const seen = new Set<string>();
+  return items.map((item, index) => {
+    let id = item.id.trim() || String(index + 1);
+    while (seen.has(id)) id = `${id}-${index + 1}`;
+    seen.add(id);
+    return id === item.id ? item : { ...item, id };
   });
 }
 
@@ -37,7 +50,7 @@ export function normalizeResumeData(value: unknown): ResumeData {
   const personal = asRecord(source.personalInfo) || {};
 
   const skills: Skill[] = Array.isArray(source.skills)
-    ? source.skills.flatMap((entry, index) => {
+    ? withUniqueIds(source.skills.flatMap((entry, index): Skill[] => {
         if (typeof entry === 'string') {
           return entry.trim() ? [{ id: `skill-${index + 1}`, name: entry.trim() }] : [];
         }
@@ -54,7 +67,7 @@ export function normalizeResumeData(value: unknown): ResumeData {
               ? record.level
               : undefined,
         }];
-      })
+      }))
     : [];
 
   const experiences = normalizeList<Experience>(source.experiences, (item, index) => {
@@ -62,7 +75,10 @@ export function normalizeResumeData(value: unknown): ResumeData {
     const role = asText(item.role).trim();
     const rawDetails = asText(item.rawDetails);
     const enhancedBullets = Array.isArray(item.enhancedBullets)
-      ? item.enhancedBullets.filter((bullet): bullet is string => typeof bullet === 'string')
+      ? item.enhancedBullets
+          .filter((bullet): bullet is string => typeof bullet === 'string')
+          .map((bullet) => bullet.trim())
+          .filter(Boolean)
       : [];
     if (!company && !role && !rawDetails.trim() && enhancedBullets.length === 0) return null;
     return {
@@ -81,7 +97,10 @@ export function normalizeResumeData(value: unknown): ResumeData {
     const title = asText(item.title).trim();
     const description = asText(item.description).trim();
     const techStack = Array.isArray(item.techStack)
-      ? item.techStack.filter((technology): technology is string => typeof technology === 'string')
+      ? item.techStack
+          .filter((technology): technology is string => typeof technology === 'string')
+          .map((technology) => technology.trim())
+          .filter(Boolean)
       : [];
     const githubUrl = asText(item.githubUrl);
     const liveUrl = asText(item.liveUrl);

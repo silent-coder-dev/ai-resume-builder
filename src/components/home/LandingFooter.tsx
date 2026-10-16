@@ -15,8 +15,10 @@ import {
 const FOOTER_LINKS = [
   { label: 'Resume builder', href: '/builder' },
   { label: 'Import a resume', href: '/#start' },
+  { label: 'Templates', href: '/#templates' },
   { label: 'Match a job', href: '/#job-match' },
-  { label: 'How it works', href: '/#features' },
+  { label: 'How it works', href: '/#how-it-works' },
+  { label: 'FAQ', href: '/#faq' },
 ];
 
 export function LandingFooter() {

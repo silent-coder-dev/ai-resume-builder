@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ShieldCheck, ChevronDown, Check, AlertCircle, Sparkles } from 'lucide-react';
+import { ShieldCheck, ChevronDown, AlertCircle, Sparkles } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 interface AtsScoreMeterProps {
@@ -12,19 +12,28 @@ interface AtsScoreMeterProps {
 
 export const AtsScoreMeter: React.FC<AtsScoreMeterProps> = ({ score, tips }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [prevScore, setPrevScore] = useState(score);
+  const prevScoreRef = useRef(score);
 
-  // Trigger celebration confetti when hitting 100%
+  // Trigger celebration confetti when the score climbs to 100%
   useEffect(() => {
-    if (score === 100 && prevScore < 100) {
+    if (score === 100 && prevScoreRef.current < 100) {
       confetti({
         particleCount: 80,
         spread: 70,
         origin: { y: 0.1, x: 0.7 },
       });
     }
-    setPrevScore(score);
-  }, [score, prevScore]);
+    prevScoreRef.current = score;
+  }, [score]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsOpen(false);
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [isOpen]);
 
   // Radius for the mini circular progress
   const radius = 13;
@@ -37,9 +46,12 @@ export const AtsScoreMeter: React.FC<AtsScoreMeterProps> = ({ score, tips }) => 
   return (
     <div className="relative">
       <motion.button
+        type="button"
         whileHover={{ scale: 1.03 }}
         whileTap={{ scale: 0.97 }}
         onClick={() => setIsOpen((prev) => !prev)}
+        aria-expanded={isOpen}
+        aria-label={`ATS score ${score} out of 100. Show improvement tips`}
         className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-slate-200/80 bg-white/90 shadow-2xs hover:shadow-xs transition-all cursor-pointer backdrop-blur-xs"
       >
         <div className="relative w-8 h-8 flex items-center justify-center">
@@ -94,7 +106,7 @@ export const AtsScoreMeter: React.FC<AtsScoreMeterProps> = ({ score, tips }) => 
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 8, scale: 0.95 }}
               transition={{ duration: 0.18, ease: 'easeOut' }}
-              className="absolute right-0 mt-2 w-80 bg-white/95 backdrop-blur-md border border-slate-200 rounded-2xl shadow-xl p-4 z-40"
+              className="fixed inset-x-3 top-20 sm:absolute sm:inset-x-auto sm:top-auto sm:right-0 sm:mt-2 sm:w-80 bg-white/95 backdrop-blur-md border border-slate-200 rounded-2xl shadow-xl p-4 z-40"
             >
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-3">
                 <div className="flex items-center gap-2">

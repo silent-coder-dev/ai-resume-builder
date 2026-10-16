@@ -17,47 +17,44 @@ export const ResumeCanvasContainer: React.FC<ResumeCanvasContainerProps> = ({
   children,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const contentRef = useRef<HTMLDivElement>(null);
+  // Stored in state (not a ref) so the size observer re-attaches every time
+  // a template switch mounts a new page element.
+  const [contentNode, setContentNode] = useState<HTMLDivElement | null>(null);
 
   const [autoScale, setAutoScale] = useState<number>(1);
   const [manualOffset, setManualOffset] = useState<number>(0);
   const [contentHeight, setContentHeight] = useState<number>(A4_PAGE_HEIGHT);
 
-  const updateDimensions = useCallback(() => {
+  const updateScale = useCallback(() => {
     if (!containerRef.current) return;
     const parentWidth = containerRef.current.getBoundingClientRect().width;
     const availableWidth = Math.max(parentWidth - 16, 280);
-
-    if (availableWidth < BASE_WIDTH) {
-      setAutoScale(availableWidth / BASE_WIDTH);
-    } else {
-      setAutoScale(1);
-    }
-
-    if (contentRef.current) {
-      setContentHeight(contentRef.current.offsetHeight);
-    }
+    setAutoScale(availableWidth < BASE_WIDTH ? availableWidth / BASE_WIDTH : 1);
   }, []);
 
   useEffect(() => {
-    updateDimensions();
+    const container = containerRef.current;
+    if (!container) return;
 
-    const resizeObserver = new ResizeObserver(() => {
-      updateDimensions();
-    });
-
-    if (containerRef.current) resizeObserver.observe(containerRef.current);
-    if (contentRef.current) resizeObserver.observe(contentRef.current);
-
-    window.addEventListener('resize', updateDimensions);
-    window.addEventListener('orientationchange', updateDimensions);
+    // ResizeObserver also fires once right after observe(), which sets the first scale.
+    const resizeObserver = new ResizeObserver(updateScale);
+    resizeObserver.observe(container);
+    window.addEventListener('orientationchange', updateScale);
 
     return () => {
       resizeObserver.disconnect();
-      window.removeEventListener('resize', updateDimensions);
-      window.removeEventListener('orientationchange', updateDimensions);
+      window.removeEventListener('orientationchange', updateScale);
     };
-  }, [updateDimensions]);
+  }, [updateScale]);
+
+  useEffect(() => {
+    if (!contentNode) return;
+    const resizeObserver = new ResizeObserver(() => {
+      setContentHeight(contentNode.offsetHeight);
+    });
+    resizeObserver.observe(contentNode);
+    return () => resizeObserver.disconnect();
+  }, [contentNode]);
 
   const effectiveScale = Math.max(0.35, Math.min(1.4, autoScale + manualOffset));
   const totalPages = Math.max(1, Math.ceil(contentHeight / A4_PAGE_HEIGHT));
@@ -103,7 +100,7 @@ export const ResumeCanvasContainer: React.FC<ResumeCanvasContainerProps> = ({
             <AnimatePresence mode="wait">
               <motion.div
                 key={activeTemplate}
-                ref={contentRef}
+                ref={setContentNode}
                 id="printable-resume-canvas"
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -140,6 +137,7 @@ export const ResumeCanvasContainer: React.FC<ResumeCanvasContainerProps> = ({
           type="button"
           onClick={() => setManualOffset((m) => Math.max(-0.4, m - 0.08))}
           title="Zoom Out"
+          aria-label="Zoom out"
           className="p-1 hover:bg-slate-100 rounded-full transition cursor-pointer"
         >
           <ZoomOut className="w-3.5 h-3.5" />
@@ -153,6 +151,7 @@ export const ResumeCanvasContainer: React.FC<ResumeCanvasContainerProps> = ({
           type="button"
           onClick={() => setManualOffset((m) => Math.min(0.4, m + 0.08))}
           title="Zoom In"
+          aria-label="Zoom in"
           className="p-1 hover:bg-slate-100 rounded-full transition cursor-pointer"
         >
           <ZoomIn className="w-3.5 h-3.5" />
@@ -162,6 +161,7 @@ export const ResumeCanvasContainer: React.FC<ResumeCanvasContainerProps> = ({
           type="button"
           onClick={() => setManualOffset(0)}
           title="Fit to Screen"
+          aria-label="Fit to screen"
           className="ml-1 pl-1.5 border-l border-slate-200 p-1 hover:bg-slate-100 rounded-full transition cursor-pointer text-slate-400 hover:text-slate-700"
         >
           <RotateCcw className="w-3 h-3" />
