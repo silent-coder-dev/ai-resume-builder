@@ -85,6 +85,11 @@ export function printResumeDocument(elementId: string, candidateName: string = '
             break-inside: avoid !important;
             page-break-inside: avoid !important;
           }
+          /* Repeat the template padding on every printed page. */
+          .resume-page, .resume-page main {
+            -webkit-box-decoration-break: clone;
+            box-decoration-break: clone;
+          }
         </style>
       </head>
       <body>

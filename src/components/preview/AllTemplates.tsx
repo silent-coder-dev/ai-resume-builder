@@ -1,31 +1,35 @@
 'use client';
 
 import React from 'react';
-import { ResumeData, SectionItem, SocialLink } from '@/types/resume';
-import { useResumeStore, SectionKey } from '@/store/useResumeStore';
+import type { Experience, ResumeData, SectionItem, SectionKey } from '@/types/resume';
 import {
+  customSectionIdFromKey,
+  isCustomSectionKey,
+  recommendedSectionOrder,
+} from '@/lib/resume/sections';
+import { safeHref } from '@/lib/resume/validation';
+import {
+  experienceBullets,
   hasText,
   isFilledAchievement,
   isFilledCertification,
+  isFilledCustomItem,
   isFilledEducation,
   isFilledExperience,
+  isFilledLanguage,
   isFilledLink,
   isFilledProject,
   isFilledSkill,
 } from '@/utils/resumeContent';
 import { Mail, Phone, MapPin } from 'lucide-react';
 
+// Templates are pure: everything they show comes from these props.
 export interface TemplateProps {
   data: ResumeData;
   accentColor: string;
-  // Optional fixed order for showcase previews. When omitted, the user's saved order is used.
+  // Section order and visibility. Defaults to the standard order.
   sectionOrder?: readonly SectionItem[];
 }
-
-const ensureUrlProtocol = (url: string) => {
-  const trimmed = url.trim();
-  return /^(https?:\/\/|mailto:)/i.test(trimmed) ? trimmed : `https://${trimmed}`;
-};
 
 const formatDateRange = (start?: string, end?: string, isCurrent?: boolean) => {
   const startLabel = start?.trim();
@@ -58,60 +62,125 @@ const ContactList: React.FC<{
   </>
 );
 
-// Clean Clickable Word Renderer for Header Links
-const RenderSocialLinks: React.FC<{ links?: SocialLink[]; className?: string }> = ({
-  links,
-  className = '',
-}) => {
-  const filledLinks = (links ?? []).filter(isFilledLink);
-  if (filledLinks.length === 0) return null;
+// LinkedIn / GitHub / Portfolio fields first, then any other profile links.
+function profileLinks(data: ResumeData): Array<{ id: string; label: string; url: string }> {
+  const { personalInfo } = data;
+  return [
+    { id: 'linkedin', label: 'LinkedIn', url: personalInfo.linkedinUrl ?? '' },
+    { id: 'github', label: 'GitHub', url: personalInfo.githubUrl ?? '' },
+    { id: 'portfolio', label: 'Portfolio', url: personalInfo.portfolioUrl ?? '' },
+    ...(data.links ?? []).filter(isFilledLink).map((link) => ({ id: link.id, label: link.platform.trim() || 'Link', url: link.url })),
+  ].filter((link) => hasText(link.url));
+}
+
+const hasProfileLinks = (data: ResumeData) => profileLinks(data).length > 0;
+
+// Clickable link words in the header. Only http(s) links become clickable.
+const RenderSocialLinks: React.FC<{ data: ResumeData; className?: string }> = ({ data, className = '' }) => {
+  const links = profileLinks(data);
+  if (links.length === 0) return null;
   return (
     <>
-      {filledLinks.map((link) => {
-        const displayWord = link.platform.trim() || 'Link';
-        return (
-          <a
-            key={link.id}
-            href={ensureUrlProtocol(link.url)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={`inline-flex items-center text-[11px] font-semibold underline underline-offset-2 hover:opacity-80 transition cursor-pointer ${className}`}
-            title={link.url}
-          >
-            <span>{displayWord}</span>
+      {links.map((link) => {
+        const href = safeHref(link.url);
+        const classes = `inline-flex items-center text-[11px] font-semibold underline underline-offset-2 ${className}`;
+        return href ? (
+          <a key={link.id} href={href} target="_blank" rel="noopener noreferrer" className={classes} title={link.url}>
+            {link.label}
           </a>
+        ) : (
+          <span key={link.id} className={classes}>
+            {link.label}
+          </span>
         );
       })}
     </>
   );
 };
 
-// Dynamic Section Renderer (Supports reordering, visibility & ATS rules)
-const DynamicSectionsRenderer: React.FC<TemplateProps> = ({
-  data,
+const SectionHeading: React.FC<{ accentColor: string; children: React.ReactNode; spacing?: string }> = ({
   accentColor,
-  sectionOrder: sectionOrderOverride,
-}) => {
-  const savedSectionOrder = useResumeStore((state) => state.sectionOrder);
-  const sectionOrder = sectionOrderOverride ?? savedSectionOrder;
+  children,
+  spacing = 'mb-2',
+}) => (
+  <h2
+    className={`text-xs font-bold uppercase tracking-wider pb-1 ${spacing} border-b`}
+    style={{ color: accentColor, borderColor: `${accentColor}40` }}
+  >
+    {children}
+  </h2>
+);
 
-  const headingStyle = { color: accentColor, borderColor: `${accentColor}40` };
+const RoleList: React.FC<{ items: Experience[] }> = ({ items }) => (
+  <div className="space-y-3">
+    {items.map((exp) => {
+      const bullets = experienceBullets(exp);
+      const dates = formatDateRange(exp.startDate, exp.endDate, exp.isCurrent);
+      const subline = [exp.company, exp.location].filter(hasText).join(' · ');
+      return (
+        <div key={exp.id} className="break-inside-avoid">
+          <div className="flex justify-between items-baseline gap-3">
+            <span className="text-xs font-bold text-slate-900">{exp.role}</span>
+            {dates && <span className="shrink-0 text-[10px] font-semibold text-slate-500">{dates}</span>}
+          </div>
+          {subline && <div className="text-[11px] font-semibold text-slate-600 mb-1">{subline}</div>}
+          {bullets.length > 0 ? (
+            <ul className="list-disc pl-4 space-y-1 text-xs text-slate-700">
+              {bullets.map((bullet, idx) => (
+                <li key={idx} className="leading-relaxed">
+                  {bullet}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            hasText(exp.rawDetails) && (
+              <p className="text-xs text-slate-600 leading-relaxed whitespace-pre-line">{exp.rawDetails}</p>
+            )
+          )}
+        </div>
+      );
+    })}
+  </div>
+);
+
+// Shared section engine: every template renders its body through this, so
+// section order, visibility, and "hide empty sections" work everywhere.
+const DynamicSectionsRenderer: React.FC<TemplateProps> = ({ data, accentColor, sectionOrder }) => {
+  const order = sectionOrder ?? recommendedSectionOrder(null);
 
   const renderSection = (id: SectionKey) => {
+    if (isCustomSectionKey(id)) {
+      const section = (data.customSections ?? []).find((item) => item.id === customSectionIdFromKey(id));
+      const items = (section?.items ?? []).filter(isFilledCustomItem);
+      if (!section || items.length === 0) return null;
+      return (
+        <section className="break-inside-avoid mb-4">
+          <SectionHeading accentColor={accentColor}>{section.title || 'Additional'}</SectionHeading>
+          <div className="space-y-2">
+            {items.map((item) => (
+              <div key={item.id} className="break-inside-avoid">
+                <div className="flex justify-between items-baseline gap-3">
+                  <span className="text-xs font-bold text-slate-900">{item.title}</span>
+                  {hasText(item.date) && <span className="shrink-0 text-[10px] font-semibold text-slate-500">{item.date}</span>}
+                </div>
+                {hasText(item.subtitle) && <div className="text-[11px] font-semibold text-slate-600">{item.subtitle}</div>}
+                {hasText(item.description) && (
+                  <p className="text-xs text-slate-700 mt-0.5 leading-relaxed whitespace-pre-line">{item.description}</p>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+      );
+    }
+
     switch (id) {
       case 'summary':
         if (!hasText(data.personalInfo.summary)) return null;
         return (
           <section className="break-inside-avoid mb-4">
-            <h2
-              className="text-xs font-bold uppercase tracking-wider pb-1 mb-1.5 border-b"
-              style={headingStyle}
-            >
-              Professional Summary
-            </h2>
-            <p className="text-xs text-slate-700 leading-relaxed text-justify">
-              {data.personalInfo.summary}
-            </p>
+            <SectionHeading accentColor={accentColor} spacing="mb-1.5">Professional Summary</SectionHeading>
+            <p className="text-xs text-slate-700 leading-relaxed text-justify">{data.personalInfo.summary}</p>
           </section>
         );
 
@@ -120,18 +189,10 @@ const DynamicSectionsRenderer: React.FC<TemplateProps> = ({
         if (skills.length === 0) return null;
         return (
           <section className="break-inside-avoid mb-4">
-            <h2
-              className="text-xs font-bold uppercase tracking-wider pb-1 mb-1.5 border-b"
-              style={headingStyle}
-            >
-              Skills & Core Competencies
-            </h2>
+            <SectionHeading accentColor={accentColor} spacing="mb-1.5">Skills & Core Competencies</SectionHeading>
             <div className="flex flex-wrap gap-1.5">
               {skills.map((skill) => (
-                <span
-                  key={skill.id}
-                  className="px-2 py-0.5 text-[11px] font-medium rounded bg-slate-100 text-slate-800 border border-slate-200"
-                >
+                <span key={skill.id} className="px-2 py-0.5 text-[11px] font-medium rounded bg-slate-100 text-slate-800 border border-slate-200">
                   {skill.name}
                 </span>
               ))}
@@ -140,55 +201,14 @@ const DynamicSectionsRenderer: React.FC<TemplateProps> = ({
         );
       }
 
-      case 'experience': {
-        const experiences = (data.experiences ?? []).filter(isFilledExperience);
-        if (experiences.length === 0) return null;
+      case 'experience':
+      case 'internships': {
+        const items = ((id === 'experience' ? data.experiences : data.internships) ?? []).filter(isFilledExperience);
+        if (items.length === 0) return null;
         return (
           <section className="break-inside-avoid mb-4">
-            <h2
-              className="text-xs font-bold uppercase tracking-wider pb-1 mb-2 border-b"
-              style={headingStyle}
-            >
-              Work Experience
-            </h2>
-            <div className="space-y-3">
-              {experiences.map((exp) => {
-                const bullets = (exp.enhancedBullets ?? []).filter(hasText);
-                const dates = formatDateRange(exp.startDate, exp.endDate, exp.isCurrent);
-                return (
-                  <div key={exp.id} className="break-inside-avoid">
-                    <div className="flex justify-between items-baseline gap-3">
-                      <span className="text-xs font-bold text-slate-900">{exp.role}</span>
-                      {dates && (
-                        <span className="shrink-0 text-[10px] font-semibold text-slate-500">
-                          {dates}
-                        </span>
-                      )}
-                    </div>
-                    {hasText(exp.company) && (
-                      <div className="text-[11px] font-semibold text-slate-600 mb-1">
-                        {exp.company}
-                      </div>
-                    )}
-                    {bullets.length > 0 ? (
-                      <ul className="list-disc pl-4 space-y-1 text-xs text-slate-700">
-                        {bullets.map((bullet, idx) => (
-                          <li key={idx} className="leading-relaxed">
-                            {bullet}
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      hasText(exp.rawDetails) && (
-                        <p className="text-xs text-slate-600 leading-relaxed whitespace-pre-line">
-                          {exp.rawDetails}
-                        </p>
-                      )
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+            <SectionHeading accentColor={accentColor}>{id === 'experience' ? 'Work Experience' : 'Internships'}</SectionHeading>
+            <RoleList items={items} />
           </section>
         );
       }
@@ -198,29 +218,36 @@ const DynamicSectionsRenderer: React.FC<TemplateProps> = ({
         if (projects.length === 0) return null;
         return (
           <section className="break-inside-avoid mb-4">
-            <h2
-              className="text-xs font-bold uppercase tracking-wider pb-1 mb-2 border-b"
-              style={headingStyle}
-            >
-              Key Projects
-            </h2>
+            <SectionHeading accentColor={accentColor}>Key Projects</SectionHeading>
             <div className="space-y-2.5">
               {projects.map((proj) => {
                 const techStack = (proj.techStack ?? []).filter(hasText).map((tech) => tech.trim());
+                const links = [
+                  { label: 'Code', href: proj.githubUrl ? safeHref(proj.githubUrl) : null },
+                  { label: 'Live', href: proj.liveUrl ? safeHref(proj.liveUrl) : null },
+                ].filter((link): link is { label: string; href: string } => Boolean(link.href));
                 return (
                   <div key={proj.id} className="break-inside-avoid">
                     <div className="flex justify-between items-baseline flex-wrap gap-1">
-                      <span className="text-xs font-bold text-slate-900">{proj.title}</span>
-                      {techStack.length > 0 && (
-                        <span className="text-[10px] text-slate-500 font-mono">
-                          {techStack.join(' • ')}
-                        </span>
-                      )}
+                      <span className="text-xs font-bold text-slate-900">
+                        {proj.title}
+                        {links.map((link) => (
+                          <a
+                            key={link.label}
+                            href={link.href}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="ml-2 text-[10px] font-semibold underline underline-offset-2"
+                            style={{ color: accentColor }}
+                          >
+                            {link.label}
+                          </a>
+                        ))}
+                      </span>
+                      {techStack.length > 0 && <span className="text-[10px] text-slate-500 font-mono">{techStack.join(' • ')}</span>}
                     </div>
                     {hasText(proj.description) && (
-                      <p className="text-xs text-slate-700 mt-0.5 leading-relaxed whitespace-pre-line">
-                        {proj.description}
-                      </p>
+                      <p className="text-xs text-slate-700 mt-0.5 leading-relaxed whitespace-pre-line">{proj.description}</p>
                     )}
                   </div>
                 );
@@ -235,28 +262,17 @@ const DynamicSectionsRenderer: React.FC<TemplateProps> = ({
         if (education.length === 0) return null;
         return (
           <section className="break-inside-avoid mb-4">
-            <h2
-              className="text-xs font-bold uppercase tracking-wider pb-1 mb-2 border-b"
-              style={headingStyle}
-            >
-              Education
-            </h2>
+            <SectionHeading accentColor={accentColor}>Education</SectionHeading>
             <div className="space-y-2">
               {education.map((edu) => (
                 <div key={edu.id} className="break-inside-avoid flex justify-between items-start gap-3">
                   <div>
                     <div className="text-xs font-bold text-slate-900">{edu.degree}</div>
-                    <div className="text-[11px] text-slate-600">
-                      {[edu.institution, edu.fieldOfStudy].filter(hasText).join(' • ')}
-                    </div>
+                    <div className="text-[11px] text-slate-600">{[edu.institution, edu.fieldOfStudy].filter(hasText).join(' • ')}</div>
                   </div>
                   <div className="shrink-0 text-right">
-                    <span className="text-[10px] font-semibold text-slate-500">
-                      {edu.graduationYear}
-                    </span>
-                    {hasText(edu.scoreOrGpa) && (
-                      <div className="text-[10px] text-slate-400">Score: {edu.scoreOrGpa}</div>
-                    )}
+                    <span className="text-[10px] font-semibold text-slate-500">{edu.graduationYear}</span>
+                    {hasText(edu.scoreOrGpa) && <div className="text-[10px] text-slate-500">Score: {edu.scoreOrGpa}</div>}
                   </div>
                 </div>
               ))}
@@ -270,17 +286,13 @@ const DynamicSectionsRenderer: React.FC<TemplateProps> = ({
         if (certifications.length === 0) return null;
         return (
           <section className="break-inside-avoid mb-4">
-            <h2
-              className="text-xs font-bold uppercase tracking-wider pb-1 mb-1.5 border-b"
-              style={headingStyle}
-            >
-              Certifications
-            </h2>
+            <SectionHeading accentColor={accentColor} spacing="mb-1.5">Certifications</SectionHeading>
             <ul className="text-xs text-slate-700 space-y-1 list-disc pl-4">
               {certifications.map((cert) => (
                 <li key={cert.id}>
                   <span className="font-bold text-slate-800">{cert.name}</span>
                   {hasText(cert.issuer) && ` — ${cert.issuer}`}
+                  {hasText(cert.date) && <span className="text-slate-500"> ({cert.date})</span>}
                 </li>
               ))}
             </ul>
@@ -293,12 +305,7 @@ const DynamicSectionsRenderer: React.FC<TemplateProps> = ({
         if (achievements.length === 0) return null;
         return (
           <section className="break-inside-avoid mb-4">
-            <h2
-              className="text-xs font-bold uppercase tracking-wider pb-1 mb-1.5 border-b"
-              style={headingStyle}
-            >
-              Key Achievements
-            </h2>
+            <SectionHeading accentColor={accentColor} spacing="mb-1.5">Key Achievements</SectionHeading>
             <ul className="text-xs text-slate-700 space-y-1 list-disc pl-4">
               {achievements.map((ach) => (
                 <li key={ach.id}>
@@ -312,6 +319,19 @@ const DynamicSectionsRenderer: React.FC<TemplateProps> = ({
         );
       }
 
+      case 'languages': {
+        const languages = (data.languages ?? []).filter(isFilledLanguage);
+        if (languages.length === 0) return null;
+        return (
+          <section className="break-inside-avoid mb-4">
+            <SectionHeading accentColor={accentColor} spacing="mb-1.5">Languages</SectionHeading>
+            <p className="text-xs text-slate-700">
+              {languages.map((language) => (hasText(language.proficiency) ? `${language.name} (${language.proficiency})` : language.name)).join(' · ')}
+            </p>
+          </section>
+        );
+      }
+
       default:
         return null;
     }
@@ -319,7 +339,7 @@ const DynamicSectionsRenderer: React.FC<TemplateProps> = ({
 
   return (
     <>
-      {sectionOrder
+      {order
         .filter((sec) => sec.visible)
         .map((sec) => (
           <React.Fragment key={sec.id}>{renderSection(sec.id)}</React.Fragment>
@@ -331,7 +351,7 @@ const DynamicSectionsRenderer: React.FC<TemplateProps> = ({
 // 1. MODERN TECH TEMPLATE
 export const ModernTemplate: React.FC<TemplateProps> = ({ data, accentColor, sectionOrder }) => {
   return (
-    <div className="w-[794px] min-h-[1123px] bg-white p-8 font-sans text-slate-900 box-border">
+    <div className="resume-page w-[794px] min-h-[1123px] bg-white p-8 font-sans text-slate-900 box-border">
       <header className="border-b-2 pb-4 mb-4" style={{ borderColor: accentColor }}>
         <h1 className="text-2xl font-black tracking-tight" style={{ color: accentColor }}>
           {textOrPlaceholder(data.personalInfo.fullName, 'Your Full Name')}
@@ -355,7 +375,7 @@ export const ModernTemplate: React.FC<TemplateProps> = ({ data, accentColor, sec
               <MapPin className="w-3 h-3" /> {data.personalInfo.location}
             </span>
           )}
-          <RenderSocialLinks links={data.links} className="text-slate-800 font-bold" />
+          <RenderSocialLinks data={data} className="text-slate-800 font-bold" />
         </div>
       </header>
 
@@ -368,7 +388,7 @@ export const ModernTemplate: React.FC<TemplateProps> = ({ data, accentColor, sec
 
 // 2. CLASSIC EXECUTIVE SERIF TEMPLATE
 export const ClassicTemplate: React.FC<TemplateProps> = ({ data, accentColor, sectionOrder }) => (
-  <div className="w-[794px] min-h-[1123px] bg-white p-10 font-serif text-slate-900 box-border">
+  <div className="resume-page w-[794px] min-h-[1123px] bg-white p-10 font-serif text-slate-900 box-border">
     <header className="text-center border-b pb-4 mb-5" style={{ borderColor: accentColor }}>
       <h1 className="text-3xl font-bold tracking-normal uppercase text-slate-900">
         {textOrPlaceholder(data.personalInfo.fullName, 'Your Name')}
@@ -380,7 +400,7 @@ export const ClassicTemplate: React.FC<TemplateProps> = ({ data, accentColor, se
         <ContactList
           values={[data.personalInfo.location, data.personalInfo.phone, data.personalInfo.email]}
         />
-        <RenderSocialLinks links={data.links} className="text-slate-900 font-bold" />
+        <RenderSocialLinks data={data} className="text-slate-900 font-bold" />
       </div>
     </header>
     <main className="font-sans">
@@ -391,9 +411,9 @@ export const ClassicTemplate: React.FC<TemplateProps> = ({ data, accentColor, se
 
 // 3. SIDEBAR CREATIVE TEMPLATE
 export const SidebarTemplate: React.FC<TemplateProps> = ({ data, accentColor, sectionOrder }) => {
-  const hasLinks = (data.links ?? []).some(isFilledLink);
+  const hasLinks = hasProfileLinks(data);
   return (
-    <div className="w-[794px] min-h-[1123px] bg-white flex font-sans box-border">
+    <div className="resume-page w-[794px] min-h-[1123px] bg-white flex font-sans box-border">
       <aside className="w-64 bg-slate-900 text-white p-6 shrink-0">
         <h1 className="text-xl font-black leading-tight text-white">
           {textOrPlaceholder(data.personalInfo.fullName, 'Your Name')}
@@ -428,7 +448,7 @@ export const SidebarTemplate: React.FC<TemplateProps> = ({ data, accentColor, se
                 Profiles
               </div>
               <div className="flex flex-col gap-1">
-                <RenderSocialLinks links={data.links} className="text-slate-200 hover:text-white" />
+                <RenderSocialLinks data={data} className="text-slate-200 hover:text-white" />
               </div>
             </div>
           )}
@@ -444,7 +464,7 @@ export const SidebarTemplate: React.FC<TemplateProps> = ({ data, accentColor, se
 
 // 4. COMPACT GRID TEMPLATE
 export const CompactTemplate: React.FC<TemplateProps> = ({ data, accentColor, sectionOrder }) => (
-  <div className="w-[794px] min-h-[1123px] bg-white p-7 font-sans text-slate-900 box-border leading-tight">
+  <div className="resume-page w-[794px] min-h-[1123px] bg-white p-7 font-sans text-slate-900 box-border leading-tight">
     <header className="flex justify-between items-center gap-4 border-b pb-2 mb-3" style={{ borderColor: accentColor }}>
       <div>
         <h1 className="text-xl font-bold" style={{ color: accentColor }}>
@@ -460,7 +480,7 @@ export const CompactTemplate: React.FC<TemplateProps> = ({ data, accentColor, se
         </div>
         {hasText(data.personalInfo.location) && <div>{data.personalInfo.location}</div>}
         <div className="flex justify-end gap-2 mt-0.5">
-          <RenderSocialLinks links={data.links} className="text-slate-800 font-bold" />
+          <RenderSocialLinks data={data} className="text-slate-800 font-bold" />
         </div>
       </div>
     </header>
@@ -472,7 +492,7 @@ export const CompactTemplate: React.FC<TemplateProps> = ({ data, accentColor, se
 
 // 5. PURE MINIMAL TEMPLATE
 export const MinimalTemplate: React.FC<TemplateProps> = ({ data, accentColor, sectionOrder }) => (
-  <div className="w-[794px] min-h-[1123px] bg-white p-10 font-sans text-slate-800 box-border">
+  <div className="resume-page w-[794px] min-h-[1123px] bg-white p-10 font-sans text-slate-800 box-border">
     <header className="mb-6">
       <h1 className="text-2xl font-light tracking-wide text-slate-900">
         {textOrPlaceholder(data.personalInfo.fullName, 'Your Name')}
@@ -485,7 +505,7 @@ export const MinimalTemplate: React.FC<TemplateProps> = ({ data, accentColor, se
           values={[data.personalInfo.email, data.personalInfo.phone, data.personalInfo.location]}
           separator="•"
         />
-        <RenderSocialLinks links={data.links} className="text-slate-800 font-bold" />
+        <RenderSocialLinks data={data} className="text-slate-800 font-bold" />
       </div>
     </header>
     <main>
@@ -496,7 +516,7 @@ export const MinimalTemplate: React.FC<TemplateProps> = ({ data, accentColor, se
 
 // 6. CORPORATE BANNER TEMPLATE
 export const CorporateTemplate: React.FC<TemplateProps> = ({ data, accentColor, sectionOrder }) => (
-  <div className="w-[794px] min-h-[1123px] bg-white font-sans text-slate-900 box-border">
+  <div className="resume-page w-[794px] min-h-[1123px] bg-white font-sans text-slate-900 box-border">
     <div className="p-8 text-white" style={{ backgroundColor: accentColor }}>
       <h1 className="text-2xl font-black">
         {textOrPlaceholder(data.personalInfo.fullName, 'Your Name')}
@@ -508,7 +528,7 @@ export const CorporateTemplate: React.FC<TemplateProps> = ({ data, accentColor, 
         <ContactList
           values={[data.personalInfo.email, data.personalInfo.phone, data.personalInfo.location]}
         />
-        <RenderSocialLinks links={data.links} className="text-white underline font-bold" />
+        <RenderSocialLinks data={data} className="text-white underline font-bold" />
       </div>
     </div>
     <main className="p-8">
@@ -519,7 +539,7 @@ export const CorporateTemplate: React.FC<TemplateProps> = ({ data, accentColor, 
 
 // 7. TIMELINE TEMPLATE
 export const TimelineTemplate: React.FC<TemplateProps> = ({ data, accentColor, sectionOrder }) => (
-  <div className="w-[794px] min-h-[1123px] bg-white p-8 font-sans text-slate-900 box-border">
+  <div className="resume-page w-[794px] min-h-[1123px] bg-white p-8 font-sans text-slate-900 box-border">
     <header className="border-l-4 pl-4 mb-6" style={{ borderColor: accentColor }}>
       <h1 className="text-2xl font-extrabold text-slate-900">
         {textOrPlaceholder(data.personalInfo.fullName, 'Your Name')}
@@ -531,7 +551,7 @@ export const TimelineTemplate: React.FC<TemplateProps> = ({ data, accentColor, s
         <ContactList
           values={[data.personalInfo.email, data.personalInfo.phone, data.personalInfo.location]}
         />
-        <RenderSocialLinks links={data.links} className="text-slate-800 font-bold" />
+        <RenderSocialLinks data={data} className="text-slate-800 font-bold" />
       </div>
     </header>
     <main className="pl-4 border-l border-slate-200">
@@ -542,7 +562,7 @@ export const TimelineTemplate: React.FC<TemplateProps> = ({ data, accentColor, s
 
 // 8. ACADEMIC / LEGAL TEMPLATE
 export const AcademicTemplate: React.FC<TemplateProps> = ({ data, accentColor, sectionOrder }) => (
-  <div className="w-[794px] min-h-[1123px] bg-white p-10 font-serif text-slate-900 box-border">
+  <div className="resume-page w-[794px] min-h-[1123px] bg-white p-10 font-serif text-slate-900 box-border">
     <header className="text-center pb-4 mb-4 border-b-2 border-slate-800">
       <h1 className="text-2xl font-bold tracking-tight text-slate-900 uppercase">
         {textOrPlaceholder(data.personalInfo.fullName, 'Your Name')}
@@ -555,7 +575,7 @@ export const AcademicTemplate: React.FC<TemplateProps> = ({ data, accentColor, s
         <ContactList
           values={[data.personalInfo.location, data.personalInfo.email, data.personalInfo.phone]}
         />
-        <RenderSocialLinks links={data.links} className="text-slate-900 font-bold" />
+        <RenderSocialLinks data={data} className="text-slate-900 font-bold" />
       </div>
     </header>
     <main className="font-serif">
@@ -566,7 +586,7 @@ export const AcademicTemplate: React.FC<TemplateProps> = ({ data, accentColor, s
 
 // 9. BOLD CREATIVE DESIGNER TEMPLATE
 export const CreativeTemplate: React.FC<TemplateProps> = ({ data, accentColor, sectionOrder }) => (
-  <div className="w-[794px] min-h-[1123px] bg-white p-8 font-sans text-slate-900 box-border">
+  <div className="resume-page w-[794px] min-h-[1123px] bg-white p-8 font-sans text-slate-900 box-border">
     <header className="mb-6 flex justify-between items-end gap-4 border-b-4 pb-4" style={{ borderColor: accentColor }}>
       <div>
         <h1 className="text-3xl font-black text-slate-950 uppercase tracking-tighter">
@@ -582,7 +602,7 @@ export const CreativeTemplate: React.FC<TemplateProps> = ({ data, accentColor, s
           itemClassName="block"
         />
         <div className="mt-0.5 flex justify-end gap-2">
-          <RenderSocialLinks links={data.links} className="text-slate-900 font-bold" />
+          <RenderSocialLinks data={data} className="text-slate-900 font-bold" />
         </div>
       </div>
     </header>
@@ -594,7 +614,7 @@ export const CreativeTemplate: React.FC<TemplateProps> = ({ data, accentColor, s
 
 // 10. CLINICAL HEALTHCARE TEMPLATE
 export const MedicalTemplate: React.FC<TemplateProps> = ({ data, accentColor, sectionOrder }) => (
-  <div className="w-[794px] min-h-[1123px] bg-white p-8 font-sans text-slate-900 box-border">
+  <div className="resume-page w-[794px] min-h-[1123px] bg-white p-8 font-sans text-slate-900 box-border">
     <header className="bg-slate-50 border border-slate-200 rounded-xl p-5 mb-5 flex justify-between items-center gap-4">
       <div>
         <h1 className="text-2xl font-bold text-slate-900">
@@ -610,7 +630,7 @@ export const MedicalTemplate: React.FC<TemplateProps> = ({ data, accentColor, se
           itemClassName="block"
         />
         <div className="mt-0.5 flex justify-end gap-2">
-          <RenderSocialLinks links={data.links} className="text-teal-800 font-bold" />
+          <RenderSocialLinks data={data} className="text-teal-800 font-bold" />
         </div>
       </div>
     </header>
@@ -622,7 +642,7 @@ export const MedicalTemplate: React.FC<TemplateProps> = ({ data, accentColor, se
 
 // 0. BLANK CANVAS TEMPLATE
 export const BlankCanvasTemplate: React.FC<TemplateProps> = ({ data, accentColor, sectionOrder }) => (
-  <div className="w-[794px] min-h-[1123px] bg-white p-8 font-sans text-slate-900 box-border">
+  <div className="resume-page w-[794px] min-h-[1123px] bg-white p-8 font-sans text-slate-900 box-border">
     <header className="border-b pb-3 mb-4">
       <h1 className="text-2xl font-bold text-slate-900">
         {textOrPlaceholder(data.personalInfo.fullName, 'Untitled Resume')}
@@ -635,7 +655,7 @@ export const BlankCanvasTemplate: React.FC<TemplateProps> = ({ data, accentColor
           values={[data.personalInfo.email, data.personalInfo.phone, data.personalInfo.location]}
           separator="•"
         />
-        <RenderSocialLinks links={data.links} className="text-slate-800 font-bold" />
+        <RenderSocialLinks data={data} className="text-slate-800 font-bold" />
       </div>
     </header>
     <main>

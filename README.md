@@ -1,23 +1,22 @@
 <div align="center">
 
-# 🚀 AI Resume Studio
+# AI Resume Studio
 
-### Build an honest, ATS-friendly resume — free, in your browser
+### Build a resume that gets you noticed — free, no sign-up
 
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?style=for-the-badge&logo=nextdotjs&logoColor=white)](https://nextjs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-blue?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
-[![Zustand](https://img.shields.io/badge/Zustand-State_Management-orange?style=for-the-badge)](https://zustand-demo.pmnd.rs/)
-[![Google Gemini](https://img.shields.io/badge/AI_Engine-Gemini_3.8_Flash-8E75B2?style=for-the-badge&logo=googlegemini&logoColor=white)](https://ai.google.dev/)
+[![Tests](https://img.shields.io/badge/Tests-Vitest_+_Playwright-6E9F18?style=for-the-badge)](#-testing)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 
 <p align="center">
-  <b>Create, polish, and tailor your resume with AI that improves the wording — and never invents the facts.</b>
+  <b>AI should improve your story, never invent your achievements.</b>
 </p>
 
 ### 🌐 [Live website: ai-resume-builder-silent.vercel.app](https://ai-resume-builder-silent.vercel.app)
 
-[Live Demo](https://ai-resume-builder-silent.vercel.app) • [Documentation](#-documentation) • [Features](#-key-features) • [Templates](#-11-ats-friendly-templates) • [Getting Started](#-getting-started) • [Project Structure](#-project-structure)
+[Documentation](#-documentation) • [Features](#-features) • [Your data](#-your-data-is-safe) • [Getting Started](#-getting-started) • [Testing](#-testing) • [Project Structure](#-project-structure)
 
 </div>
 
@@ -25,231 +24,190 @@
 
 ## 🌟 What is AI Resume Studio?
 
-AI Resume Studio is a free resume builder that runs in your browser. You can start from a blank page, import your old PDF resume, or load a sample. You then edit in 7 simple steps while a live A4 preview updates as you type. When you are happy, you download a clean PDF.
+AI Resume Studio is a free resume builder that runs in your browser. Open it and start — there is no account, no paywall, and no watermark.
 
-AI helps you write a professional summary, turn rough notes into strong bullet points, fix grammar, and compare your resume with a real job description. **One rule is always followed: the AI can improve how something is said, but it never adds skills, numbers, jobs, or results you did not give it.**
+You can keep **several resumes** (for example a Java Developer resume and an Internship resume). Every change is **saved automatically** in your browser. AI helps you write, check, and tailor your resume, but **every AI suggestion waits for your approval**, and the AI never adds skills, numbers, or experience you did not give it.
 
-- ✅ **Free** — no payment, no watermark
-- ✅ **No account** — your draft is saved only in your own browser
-- ✅ **Works on mobile** — edit and preview on a phone
+The full product plan is in the [Product Requirements Document](./doc/PRD.md).
 
 ---
 
 ## 📚 Documentation
 
-All project documents live in the [`doc/`](./doc) folder and are written in simple English.
+All documents are in the [`doc/`](./doc) folder, written in simple English.
 
 | # | Document | What you will learn |
 |---|---|---|
-| 1 | [Problem and Solution](./doc/01-PROBLEM-AND-SOLUTION.md) | The problem, what the website does, how it solves it, and who it is for |
-| 2 | [Approaches](./doc/02-APPROACHES.md) | Every technical approach in detail, and why it was chosen |
-| 3 | [Design System](./doc/03-DESIGN-SYSTEM.md) | Fonts, colors, components, animation, and all 11 templates |
-| 4 | [Flowcharts](./doc/04-FLOWCHARTS.md) | Diagrams of every feature, from import to PDF download |
-| 5 | [Directory Map](./doc/05-DIRECTORY-MAP.md) | Every folder and file, with a visual map and a "where do I change…" finder |
+| 1 | [Problem and Solution](./doc/01-PROBLEM-AND-SOLUTION.md) | The problem, what the website does, and who it is for |
+| 2 | [Approaches](./doc/02-APPROACHES.md) | How everything is built, and why |
+| 3 | [Design System](./doc/03-DESIGN-SYSTEM.md) | Fonts, colors, spacing, components, motion, and templates |
+| 4 | [Flowcharts](./doc/04-FLOWCHARTS.md) | Diagrams of every flow: saving, new resume, AI approval, tools |
+| 5 | [Directory Map](./doc/05-DIRECTORY-MAP.md) | Every folder and file, with a "where do I change…" finder |
+| 📋 | [Product Requirements (PRD)](./doc/PRD.md) | The full product plan (v2.0) |
 
 ---
 
-## ✨ Key Features
+## ✨ Features
 
-### ✍️ Guided editor
-- **7 small steps:** Personal → Skills → Experience → Projects → Education → Certifications → Achievements.
-- **Live A4 preview** that updates as you type, with red dashed lines where each page ends.
-- **Clickable profile links** for GitHub, LinkedIn, LeetCode, portfolio, or any site.
-- **Complete education records:** Class 10, Class 12, diploma, degree, and postgraduate entries, each with its own year and marks.
-- **"I currently work here"** option that shows *Present* on the resume.
-- **Your draft is saved automatically** in this browser and restored when you come back.
-
-### 🤖 AI helpers (evidence only)
-- **PDF import:** the AI reads your PDF and fills the matching fields. Missing sections stay empty — nothing is guessed.
-- **AI Summary Studio:** asks if you are a fresher or experienced, then writes a 3-sentence summary from your real details.
-- **AI Enhance:** turns rough work notes into 2–3 clear bullet points. You can edit them line by line.
-- **Optimize with AI:** polishes grammar and clarity across the resume. You see every change side by side and choose to apply or keep the original.
-
-### 🎯 Honest job matching
-- Paste or upload (.txt / .md) a full job description and compare it with your resume.
-- See each requirement with the **evidence found** or the **gap**, split into *required* and *preferred*.
-- Get warnings for **domain mismatch**, **missing license**, or **not enough experience**.
-- **"Sync resume with JD"** (tailor your resume to the job) only unlocks when your field, key skills, and experience level truly fit — not because of a percentage. It is protected by a signed, 15-minute server token.
-
-### 🎨 Layout and export
-- **11 templates** and **7 accent colors** — try them all live in the home page gallery, then open the editor with one click.
-- **Reorder or hide sections** — freshers can put Projects first, experienced people can lead with Work Experience.
-- **ATS score out of 100** with clear tips to improve.
-- **Clean PDF download** using the browser's own print engine: real text that ATS software can read, no watermark, and no browser URL or date on the page.
+| Area | What you get |
+|---|---|
+| **Resume Builder** | Section-by-section editor with a live A4 preview, undo/redo, and autosave. Sections: Personal Information, Summary, Education, Work Experience, Internships, Projects, Skills, Certifications, Achievements, Languages, and your own custom sections. Reorder or hide any section. |
+| **My Resumes** | Keep many independent resumes. Open, rename, duplicate, download, export, or delete each one. |
+| **Start your way** | Blank resume, import your old PDF, start from one of 10 example resumes, or copy one of your own. |
+| **Fresher mode** | Students and freshers get Education and Projects first, and are never marked down for having no job history. |
+| **AI writing assistant** | Improve Writing, Make Concise, Make Professional, Fix Grammar, Improve Clarity, Rewrite as Achievement, Add Relevant Keywords — always shown next to your original for Accept / Edit / Reject. |
+| **Resume Analyzer** | Analyze a saved resume **or upload a PDF**. An explainable readiness score with issues, severity, why it matters, how to fix it, and a "Fix" button. Optional AI review for grammar, clarity, and role relevance. |
+| **Job Matcher** | Compare a saved or uploaded resume with a job description (paste it, or upload a PDF or .txt): evidence for each requirement, missing skills, keyword gaps, and project alignment. Create a **separate tailored version** — the original is never changed. |
+| **GitHub Projects** | Turn public repositories into project entries written only from the README, languages, and topics. |
+| **Interview Prep** | Use a saved or uploaded resume, and optionally a job description. Questions test the **job's requirements** and show which ones your resume covers. **Coding questions come with sample code**, hidden until you ask, plus feedback on your answer. |
+| **Templates & PDF** | 11 ATS-friendly A4 templates, 7 accent colors, and a clean PDF with real text, clickable links, and correct margins on every page. |
 
 ---
 
-## 📄 11 ATS-Friendly Templates
+## 🛡️ Your data is safe
 
-| | Template | Best for |
-|---|---|---|
-| 0 | Blank Canvas | The simplest possible layout |
-| 1 | Modern Tech *(default)* | Software, IT, startups |
-| 2 | Executive Serif | Managers and senior roles |
-| 3 | Creative Sidebar | Designers and portfolios |
-| 4 | Compact Grid | Fitting a lot onto one page |
-| 5 | Pure Minimal | A clean, quiet look |
-| 6 | Corporate Banner | Business, consulting, sales |
-| 7 | Career Timeline | Showing a clear career path |
-| 8 | Legal / Academic | Law, research, teaching |
-| 9 | Bold Designer | Creative and marketing roles |
-| 10 | Clinical Healthcare | Doctors, nurses, healthcare |
-
-**10 sample profiles** are included (Java, MERN, law, medicine, teaching, sales, design, finance, HR, and data science) so you can see a full resume before you start.
+- **Saved automatically** in this browser (IndexedDB) as you type, with a visible status: *Saving…*, *All changes saved*, *Offline*, *Save failed*, or *Recovering previous changes*.
+- **Refresh or Back never loses work.** The last resume reopens exactly where you left it. If the tab closes in the middle of a save, the change is recovered on your next visit.
+- **Nothing is overwritten silently.** Creating a new resume asks: *Continue existing resume*, *Create new resume*, or *Cancel*. Edits from two tabs never overwrite each other without asking.
+- **Version history** lets you restore an earlier version of any resume.
+- **Backups:** export one or all resumes as a `.json` file and import them on any browser.
+- **Privacy:** no account and no database. Your text goes to the AI provider only when you use an AI feature. See [Privacy & Data](https://ai-resume-builder-silent.vercel.app/privacy).
 
 ---
 
 ## 🛠️ Tech Stack
 
-| Area | Technology | Purpose |
-|---|---|---|
-| Framework | Next.js 16 (App Router) | Pages and the server-side AI route |
-| Language | TypeScript 5 (strict) | Safe, typed resume data |
-| UI | React 19 + Tailwind CSS 4 | Interface and print styles |
-| Fonts | Geist Sans and Geist Mono | Interface and resume text |
-| State | Zustand 5 + persist | One store, saved in the browser |
-| Animation | Framer Motion | Smooth tabs, modals, and transitions |
-| Icons | Lucide React | One consistent icon set |
-| AI | Google Gemini (default) or OpenRouter | Import, summary, bullets, polish, job matching |
-| PDF | Browser print + hidden iframe | Real-text A4 PDF output |
-| Hosting | Vercel | Hosting and deployment |
-
-Want the details? Read **[Approaches](./doc/02-APPROACHES.md)**.
+| Area | Technology |
+|---|---|
+| Framework | Next.js 16 (App Router), React 19 |
+| Language | TypeScript 5 (strict) |
+| Styling | Tailwind CSS 4 with design tokens, Inter font, Lucide icons |
+| State | Zustand 5 (workspace store) |
+| Storage | IndexedDB through a storage service (`src/lib/storage`) |
+| AI | Google Gemini (default) or OpenRouter, called only from the server |
+| GitHub | GitHub REST API (public repositories only) |
+| PDF | Browser print engine with A4 rules |
+| Tests | Vitest + fake-indexeddb (unit), Playwright (end-to-end) |
+| Hosting | Vercel |
 
 ---
 
 ## 🚀 Getting Started
 
-### 1. Clone the repository
+### 1. Clone and install
 
 ```bash
 git clone https://github.com/silent-coder-dev/ai-resume-builder.git
 cd ai-resume-builder
-```
-
-### 2. Install dependencies
-
-```bash
 npm install
 ```
 
-### 3. Add your environment variables
+### 2. Add environment variables
 
-Create a file named `.env.local` in the project root.
-
-**Option A — Google Gemini (default):**
+Create `.env.local` in the project root.
 
 ```env
-AI_PROVIDER=gemini
-GEMINI_API_KEY=your-google-gemini-api-key
-AI_SYNC_TOKEN_SECRET=any-long-random-text
-```
+# Choose one AI provider
+AI_PROVIDER=gemini                     # or: openrouter
+GEMINI_API_KEY=your-google-gemini-key
+# OPENROUTER_API_KEY=your-openrouter-key
+# OPENROUTER_MODEL=google/gemini-2.5-flash
 
-**Option B — OpenRouter:**
-
-```env
-AI_PROVIDER=openrouter
-OPENROUTER_API_KEY=your-openrouter-api-key
-OPENROUTER_MODEL=google/gemini-2.5-flash
-# Optional, comma separated:
-# OPENROUTER_FALLBACK_MODELS=provider/backup-model
+# Recommended
 AI_SYNC_TOKEN_SECRET=any-long-random-text
+
+# Optional: a different OpenRouter model per tool, to spread the load
+# OPENROUTER_MODEL_ANALYZER=cohere/north-mini-code:free
+# OPENROUTER_MODEL_JOB_MATCH=nvidia/nemotron-3-ultra-550b-a55b:free
+# OPENROUTER_MODEL_INTERVIEW=another/model:free
+
+# Optional
+# AI_RATE_LIMIT_PER_MINUTE=10
+# AI_RATE_LIMIT_PER_DAY=150
+# GITHUB_TOKEN=a-github-token-for-higher-api-limits
 ```
 
 | Variable | Required? | What it does |
 |---|---|---|
 | `AI_PROVIDER` | No (default `gemini`) | `gemini` or `openrouter` |
-| `GEMINI_API_KEY` | Yes, for Gemini | Your Google AI Studio key |
-| `OPENROUTER_API_KEY` | Yes, for OpenRouter | Your OpenRouter key |
-| `OPENROUTER_MODEL` | No | Main OpenRouter model (default `google/gemini-2.5-flash`) |
-| `OPENROUTER_FALLBACK_MODELS` | No | Backup OpenRouter models, comma separated |
-| `AI_SYNC_TOKEN_SECRET` | Recommended | Secret used to sign the job-tailoring token. If empty, the AI key is used. |
+| `GEMINI_API_KEY` | For Gemini | Google AI Studio key |
+| `OPENROUTER_API_KEY` | For OpenRouter | OpenRouter key |
+| `OPENROUTER_MODEL` / `OPENROUTER_FALLBACK_MODELS` | No | OpenRouter main and backup models |
+| `OPENROUTER_MODEL_ANALYZER` / `OPENROUTER_MODEL_JOB_MATCH` / `OPENROUTER_MODEL_INTERVIEW` | No | A separate OpenRouter model for the Resume Analyzer's AI review, the Job Matcher, and Interview Prep. If that model fails or gives an unusable answer, the main model answers instead. |
+| `AI_SYNC_TOKEN_SECRET` | Recommended | Signs the job-tailoring permission token |
+| `AI_RATE_LIMIT_PER_MINUTE` / `AI_RATE_LIMIT_PER_DAY` | No | Fair-use AI limits per visitor (defaults 10 and 150) |
+| `GITHUB_TOKEN` | No | Raises GitHub API limits for the GitHub Projects tool |
 | `NEXT_PUBLIC_SITE_URL` | No | Your site URL, sent to OpenRouter as the referrer |
 
-Pick a model from [OpenRouter's model list](https://openrouter.ai/models). Keep `.env.local` private and never commit it. On Vercel, add the same variables under **Project Settings → Environment Variables**, then redeploy.
+Keep `.env.local` private. On Vercel, add the same variables in **Project Settings → Environment Variables** and redeploy.
 
-### 4. Run the app
+### 3. Run it
 
 ```bash
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). The home page is at `/` and the editor is at `/builder`.
-
-### Scripts
+Open [http://localhost:3000](http://localhost:3000).
 
 | Command | What it does |
 |---|---|
-| `npm run dev` | Start the development server |
-| `npm run build` | Create a production build |
+| `npm run dev` | Development server |
+| `npm run build` | Production build |
 | `npm run start` | Run the production build |
-| `npm run lint` | Check the code with ESLint |
+| `npm run lint` | ESLint |
+| `npm test` | Unit tests (Vitest) |
+| `npm run test:e2e` | End-to-end tests (Playwright; run `npm run build` first) |
+
+---
+
+## 🧪 Testing
+
+- **Unit tests** (`tests/unit`, 33 tests): the storage service, autosave, undo/redo, conflicts between tabs, version history, backups, recovery of unsaved edits, the analyzer, data cleanup, and rate limits.
+- **End-to-end tests** (`tests/e2e`, 18 tests): every data-safety scenario in the PRD (refresh, Back, new-resume dialog, continue, create, cancel, duplicate, delete, cleared storage), AI approval, templates and PDF, keyboard use, phone layouts, and the upload flows in the Analyzer, Job Matcher, and Interview Prep. AI calls are mocked, so the tests are free and repeatable.
+
+On Windows the end-to-end tests use the installed Microsoft Edge. Elsewhere, run `npx playwright install chromium` once.
 
 ---
 
 ## 📂 Project Structure
 
 ```text
-ai-resume-builder/
-├── doc/                             # Project documentation (5 guides)
-├── public/                          # Static files
-└── src/
-    ├── app/
-    │   ├── api/ai/route.ts          # The AI server route (all AI actions)
-    │   ├── builder/
-    │   │   ├── layout.tsx           # Editor page title
-    │   │   └── page.tsx             # Editor: toolbar, form, live preview
-    │   ├── globals.css              # Tailwind, fonts, A4 print rules
-    │   ├── icon.tsx                 # Favicon
-    │   ├── layout.tsx               # Root layout and fonts
-    │   └── page.tsx                 # Home page
-    ├── components/
-    │   ├── home/                    # Home page, one file per section
-    │   │   ├── StudioLanding.tsx    # Puts the sections in order
-    │   │   ├── LandingNav.tsx       # Floating glass navigation
-    │   │   ├── LandingHero.tsx      # Hero, start / import, 3D live resume
-    │   │   ├── LandingFeatures.tsx  # Stats, feature bento, steps, honesty section
-    │   │   ├── TemplateShowcase.tsx # Live gallery of all 11 templates
-    │   │   ├── JobMatchSection.tsx  # Job match + tailoring
-    │   │   ├── LandingFaq.tsx       # FAQ
-    │   │   ├── LandingFooter.tsx    # Footer
-    │   │   ├── landingPrimitives.tsx # Reveal, CountUp, ScoreRing, ScaledResume …
-    │   │   └── landingDemoResume.ts # Made-up demo profile for previews
-    │   ├── layout/Footer.tsx        # Editor footer
-    │   ├── preview/
-    │   │   ├── AllTemplates.tsx     # 11 templates + shared section engine
-    │   │   ├── templateCatalog.tsx  # One list of templates + accent colors
-    │   │   └── ResumeCanvasContainer.tsx  # A4 canvas, zoom, page counter
-    │   ├── ui/AtsScoreMeter.tsx     # ATS score gauge and tips
-    │   └── wizard/
-    │       ├── FormWizard.tsx       # 7-step form, AI summary, AI bullets
-    │       ├── ResumeOptimizeButton.tsx  # AI polish with side-by-side review
-    │       ├── SectionReorderModal.tsx   # Reorder and show/hide sections
-    │       └── UploadResumeModal.tsx     # Import a PDF inside the editor
-    ├── store/
-    │   ├── useResumeStore.ts        # The one data store (saved in the browser)
-    │   └── useStoreHydrated.ts      # "Is the saved draft loaded yet?"
-    ├── types/
-    │   ├── initialResumeData.ts     # Empty resume + 10 sample profiles
-    │   └── resume.ts                # Resume data types
-    └── utils/
-        ├── aiClient.ts              # Calls /api/ai with friendly errors
-        ├── atsScore.ts              # ATS score and tips
-        ├── exportPdf.ts             # Print frame for PDF download
-        ├── normalizeResumeData.ts   # Cleans AI resume data
-        ├── resumeContent.ts         # "Is it filled?" checks and IDs
-        └── resumeImport.ts          # PDF checks and import
+src/
+├── app/
+│   ├── page.tsx                 # Home page
+│   ├── (studio)/                # App pages sharing the sidebar
+│   │   ├── builder/             # Resume Builder (workspace)
+│   │   ├── resumes/             # My Resumes
+│   │   ├── analyzer/            # Resume Analyzer
+│   │   ├── job-match/           # Job Matcher
+│   │   ├── github/              # GitHub Projects
+│   │   ├── interview/           # Interview Prep
+│   │   ├── settings/            # Settings
+│   │   └── privacy/             # Privacy & Data
+│   └── api/
+│       ├── ai/route.ts          # All AI actions (server only)
+│       └── github/route.ts      # Public GitHub repository data
+├── components/
+│   ├── home/                    # Home page sections
+│   ├── shell/                   # Sidebar, banners, autosave lifecycle
+│   ├── workspace/               # Builder: toolbar, sections, editors, AI tools
+│   ├── tools/                   # Analyzer, matcher, GitHub, interview, resumes, settings, privacy
+│   ├── preview/                 # 11 resume templates and the A4 preview
+│   └── ui/                      # Buttons, fields, dialogs, menus, toasts
+├── lib/
+│   ├── storage/                 # IndexedDB storage service, backups, recovery
+│   ├── resume/                  # Resume record, sections, analyzer, validation, samples
+│   ├── server/rateLimit.ts      # AI and GitHub rate limits
+│   └── entitlements.ts          # Feature policies (all free at launch)
+├── store/                       # Workspace store and preferences
+├── types/                       # Resume types and example resumes
+└── utils/                       # AI client, PDF export, data cleanup, helpers
+tests/
+├── unit/                        # Vitest
+└── e2e/                         # Playwright
 ```
 
-See the full map with diagrams in **[Directory Map](./doc/05-DIRECTORY-MAP.md)**.
-
----
-
-## 🔒 Privacy
-
-- Your resume is saved **only in your browser** (localStorage). There is no database and no login.
-- Your details are sent to the AI provider **only when you press an AI button**, and only what that feature needs.
-- AI suggestions can be imperfect. Always review your resume before you send it.
+The full map is in [Directory Map](./doc/05-DIRECTORY-MAP.md).
 
 ---
 

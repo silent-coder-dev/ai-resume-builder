@@ -1,30 +1,59 @@
 @import "tailwindcss";
 
-/* Use the Geist fonts loaded in layout.tsx for every `font-sans` / `font-mono` class */
+/* =========================================================
+   DESIGN TOKENS (PRD §5)
+   Use these names in components: bg-primary, text-ink-2,
+   border-line, text-title, text-body …
+   ========================================================= */
 @theme inline {
-  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
-/* Landing page motion: `animate-marquee` (role ticker) and `animate-shine` (gradient text) */
 @theme {
-  --animate-marquee: marquee 38s linear infinite;
-  --animate-shine: shine 7s linear infinite;
+  /* Primary */
+  --color-primary: #4f46e5;
+  --color-primary-hover: #4338ca;
+  --color-primary-light: #eef2ff;
 
-  @keyframes marquee {
-    from {
-      transform: translateX(0);
-    }
-    to {
-      transform: translateX(-50%);
-    }
-  }
+  /* Backgrounds */
+  --color-canvas: #f8fafc;
+  --color-surface: #ffffff;
+  --color-surface-2: #f1f5f9;
 
-  @keyframes shine {
-    to {
-      background-position: 200% center;
-    }
-  }
+  /* Text: ink (primary), ink-2 (secondary), ink-3 (muted — icons and placeholders only) */
+  --color-ink: #0f172a;
+  --color-ink-2: #64748b;
+  --color-ink-3: #94a3b8;
+
+  /* Borders */
+  --color-line: #e2e8f0;
+  --color-line-strong: #cbd5e1;
+
+  /* Status */
+  --color-success: #16a34a;
+  --color-warning: #d97706;
+  --color-error: #dc2626;
+  --color-info: #2563eb;
+
+  /* Type scale */
+  --text-hero: 48px;
+  --text-hero--line-height: 56px;
+  --text-title: 28px;
+  --text-title--line-height: 36px;
+  --text-heading: 22px;
+  --text-heading--line-height: 30px;
+  --text-card: 16px;
+  --text-card--line-height: 24px;
+  --text-body: 14px;
+  --text-body--line-height: 22px;
+  --text-small: 13px;
+  --text-small--line-height: 20px;
+  --text-label: 12px;
+  --text-label--line-height: 16px;
+
+  /* Motion */
+  --default-transition-duration: 150ms;
 }
 
 @layer base {
@@ -39,11 +68,70 @@
     -moz-osx-font-smoothing: grayscale;
   }
 
-  @media (prefers-reduced-motion: reduce) {
-    html {
-      scroll-behavior: auto;
-    }
+  /* One consistent, visible focus ring for keyboard users (WCAG 2.2). */
+  :focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
   }
+
+  ::placeholder {
+    color: var(--color-ink-3);
+  }
+}
+
+/* Dialogs (native <dialog>): 180 ms entrance. */
+dialog.app-dialog[open] {
+  animation: dialog-in 180ms ease-out;
+}
+dialog.app-dialog::backdrop {
+  background: rgb(15 23 42 / 0.45);
+  animation: backdrop-in 180ms ease-out;
+}
+@keyframes dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes canvas-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Reduced motion: the system setting, or the in-app setting (html.reduce-motion). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+html.reduce-motion *,
+html.reduce-motion *::before,
+html.reduce-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
 }
 
 /* =========================================================
@@ -110,5 +198,13 @@
   li {
     break-inside: avoid !important;
     page-break-inside: avoid !important;
+  }
+
+  /* Multi-page resumes: repeat the template's inner padding on every page,
+     so page 2 does not start at the very edge of the paper. */
+  .resume-page,
+  .resume-page main {
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
   }
 }

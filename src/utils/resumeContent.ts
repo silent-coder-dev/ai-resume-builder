@@ -1,8 +1,11 @@
 import type {
   Achievement,
   Certification,
+  CustomSection,
+  CustomSectionItem,
   Education,
   Experience,
+  Language,
   Project,
   ResumeData,
   Skill,
@@ -36,7 +39,19 @@ export const isFilledCertification = (certification: Certification) => hasText(c
 export const isFilledAchievement = (achievement: Achievement) =>
   hasText(achievement.title) || hasText(achievement.description);
 
+export const isFilledLanguage = (language: Language) => hasText(language.name);
+
+export const isFilledCustomItem = (item: CustomSectionItem) =>
+  hasText(item.title) || hasText(item.subtitle) || hasText(item.description);
+
+export const isFilledCustomSection = (section: CustomSection) => section.items.some(isFilledCustomItem);
+
 export const isFilledLink = (link: SocialLink) => hasText(link.url);
+
+// Bullet text for an experience: written bullets first, otherwise the notes.
+export function experienceBullets(experience: Experience): string[] {
+  return (experience.enhancedBullets ?? []).map((bullet) => bullet.trim()).filter(Boolean);
+}
 
 export function hasResumeContent(data: ResumeData | null | undefined): data is ResumeData {
   if (!data?.personalInfo) return false;
@@ -47,10 +62,13 @@ export function hasResumeContent(data: ResumeData | null | undefined): data is R
     hasText(summary) ||
     (data.skills ?? []).some(isFilledSkill) ||
     (data.experiences ?? []).some(isFilledExperience) ||
+    (data.internships ?? []).some(isFilledExperience) ||
     (data.projects ?? []).some(isFilledProject) ||
     (data.education ?? []).some(isFilledEducation) ||
     (data.certifications ?? []).some(isFilledCertification) ||
-    (data.achievements ?? []).some(isFilledAchievement)
+    (data.achievements ?? []).some(isFilledAchievement) ||
+    (data.languages ?? []).some(isFilledLanguage) ||
+    (data.customSections ?? []).some(isFilledCustomSection)
   );
 }
 

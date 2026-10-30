@@ -1,6 +1,6 @@
 # 4. Flowcharts — How Everything Moves
 
-> **Read time:** about 10 minutes
+> **Read time:** about 15 minutes
 > **Before this:** [3. Design System](./03-DESIGN-SYSTEM.md) · **Next:** [5. Directory Map](./05-DIRECTORY-MAP.md)
 
 Every chart below is written in **Mermaid**. GitHub shows them as diagrams automatically. In VS Code, install a Mermaid preview extension to see them.
@@ -18,23 +18,48 @@ Every chart below is written in **Mermaid**. GitHub shows them as diagrams autom
 
 ## Contents
 
+**The app**
 1. [System overview](#1-system-overview)
-2. [The full user journey](#2-the-full-user-journey)
-3. [Starting a resume](#3-starting-a-resume)
-4. [The editing loop](#4-the-editing-loop)
-5. [Saving and restoring the draft](#5-saving-and-restoring-the-draft)
-6. [Importing a PDF resume](#6-importing-a-pdf-resume)
-7. [AI Summary Studio](#7-ai-summary-studio)
-8. [AI Enhance for work bullets](#8-ai-enhance-for-work-bullets)
-9. [Optimize with AI (review and apply)](#9-optimize-with-ai-review-and-apply)
-10. [Job matching and tailoring](#10-job-matching-and-tailoring)
-11. [The sync token, step by step](#11-the-sync-token-step-by-step)
-12. [Reordering and drawing sections](#12-reordering-and-drawing-sections)
-13. [The live preview and page counter](#13-the-live-preview-and-page-counter)
-14. [Downloading the PDF](#14-downloading-the-pdf)
-15. [Inside the AI route](#15-inside-the-ai-route)
-16. [AI model retry and fallback](#16-ai-model-retry-and-fallback)
-17. [How the ATS score is calculated](#17-how-the-ats-score-is-calculated)
+2. [Pages and how they connect](#2-pages-and-how-they-connect)
+3. [First visit and returning visit](#3-first-visit-and-returning-visit)
+4. [Opening the Builder](#4-opening-the-builder)
+
+**Keeping your work safe**
+
+5. [Creating a new resume (the confirmation dialog)](#5-creating-a-new-resume-the-confirmation-dialog)
+6. [Ways to start a resume](#6-ways-to-start-a-resume)
+7. [Autosave](#7-autosave)
+8. [The save status](#8-the-save-status)
+9. [Refresh, Back, and closing the tab](#9-refresh-back-and-closing-the-tab)
+10. [Recovering unsaved changes](#10-recovering-unsaved-changes)
+11. [Two tabs editing the same resume](#11-two-tabs-editing-the-same-resume)
+12. [Version history](#12-version-history)
+13. [Undo and redo](#13-undo-and-redo)
+14. [My Resumes actions](#14-my-resumes-actions)
+15. [Backups: export and import](#15-backups-export-and-import)
+16. [Moving the old single draft](#16-moving-the-old-single-draft)
+
+**Editing and output**
+
+17. [Sections: order, hide, and draw](#17-sections-order-hide-and-draw)
+18. [Importing a PDF resume](#18-importing-a-pdf-resume)
+19. [Downloading the PDF](#19-downloading-the-pdf)
+
+**AI and tools**
+
+20. [AI suggestion approval](#20-ai-suggestion-approval)
+21. [AI polish for the whole resume](#21-ai-polish-for-the-whole-resume)
+22. [Resume Analyzer](#22-resume-analyzer)
+23. [Job Matcher and the tailored copy](#23-job-matcher-and-the-tailored-copy)
+24. [The permission token](#24-the-permission-token)
+25. [GitHub Projects](#25-github-projects)
+26. [Interview Prep](#26-interview-prep)
+
+**The server**
+
+27. [Inside the AI route](#27-inside-the-ai-route)
+28. [Rate limits](#28-rate-limits)
+29. [AI model retry and fallback](#29-ai-model-retry-and-fallback)
 
 ---
 
@@ -42,396 +67,656 @@ Every chart below is written in **Mermaid**. GitHub shows them as diagrams autom
 
 ```mermaid
 flowchart LR
-    U(["User"]) --> HOME["Home page /"]
-    U --> ED["Editor /builder"]
+    U(["User"]) --> HOME["Home page"]
+    U --> APP["App pages:<br/>Builder, My Resumes, Analyzer,<br/>Job Matcher, GitHub, Interview,<br/>Settings, Privacy"]
 
     subgraph Browser
         HOME
-        ED
-        STORE["Zustand store"]
-        LS[("localStorage<br/>ai-resume-builder-store")]
-        PREVIEW["Live A4 preview<br/>11 templates"]
-        PDF["Print frame<br/>Save as PDF"]
+        APP
+        STORE["Workspace store<br/>useWorkspaceStore"]
+        DB[("IndexedDB<br/>ai-resume-studio")]
+        LS[("localStorage<br/>settings and unsaved copy")]
     end
+
+    APP --> STORE
+    STORE <--> DB
+    STORE --> LS
 
     subgraph Server
-        API["POST /api/ai"]
+        AI["AI route<br/>/api/ai"]
+        GH["GitHub route<br/>/api/github"]
     end
 
-    subgraph AIProvider["AI provider"]
-        GEM["Google Gemini"]
-        OR["OpenRouter"]
+    APP -->|"callAi"| AI
+    APP -->|"GET"| GH
+    AI --> PROV["Gemini or OpenRouter"]
+    GH --> GHAPI["GitHub REST API"]
+```
+
+---
+
+## 2. Pages and how they connect
+
+```mermaid
+flowchart TD
+    HOME["Home page"] -->|"Build My Resume"| B["Builder"]
+    HOME -->|"Open Resume Studio"| R["My Resumes"]
+    HOME -->|"Use this template"| B
+
+    subgraph Shell["App shell: sidebar on desktop, menu on phone"]
+        B
+        R
+        AN["Analyzer"]
+        JM["Job Matcher"]
+        GHP["GitHub Projects"]
+        IV["Interview Prep"]
+        ST["Settings"]
+        PR["Privacy and Data"]
     end
 
-    HOME <--> STORE
-    ED <--> STORE
-    STORE <--> LS
-    STORE --> PREVIEW
-    PREVIEW --> PDF
-    HOME -- "import, match, tailor" --> API
-    ED -- "summary, bullets, optimize, import" --> API
-    API --> GEM
-    API --> OR
+    R -->|"Open"| B
+    AN -->|"Fix button"| B
+    JM -->|"Open tailored copy"| B
+    GHP -->|"Add to resume"| B
+    B -->|"Analyze"| AN
 ```
 
 ---
 
-## 2. The full user journey
+## 3. First visit and returning visit
 
 ```mermaid
 flowchart TD
-    A(["Open the website"]) --> B["Home page"]
-    B --> C{"What do you want to do?"}
-
-    C -->|Build a resume| D{"Saved draft on this device?"}
-    D -->|Yes| E["Continue saved resume"]
-    D -->|No or start over| F{"Start how?"}
-    F -->|From scratch| G["Blank editor"]
-    F -->|Import a PDF| H["AI reads the PDF"]
-    H --> I["Editor filled with your details"]
-    E --> J["Editor"]
-    G --> J
-    I --> J
-
-    C -->|Try templates| TG["Template gallery:<br/>pick template + color"]
-    TG --> TU["Use this template"]
-    TU --> J
-
-    C -->|Check a job| K["Job Match section"]
-    K --> L["Get fit analysis"]
-    L --> M{"All fit checks pass?"}
-    M -->|Yes| N["Sync resume with job"]
-    N --> J
-    M -->|No| O["See gaps and tips"]
-    O --> J
-
-    J --> P["Edit 7 steps with live preview"]
-    P --> Q["Use AI helpers<br/>summary, bullets, optimize"]
-    Q --> R["Pick template, color, section order"]
-    R --> S["Check ATS score and page count"]
-    S --> T(["Download PDF"])
+    A(["Open the home page"]) --> B{"Any resumes saved<br/>in this browser?"}
+    B -->|No| C["Hero shows:<br/>Build My Resume, Explore Templates"]
+    B -->|Yes| D["Hero also shows:<br/>Continue editing"]
+    C --> E["Press Build My Resume"]
+    E --> F["Builder: Create your first resume"]
+    D --> G["Press Continue editing"]
+    G --> H["Builder opens the last edited resume"]
+    D --> I["Press Build My Resume"]
+    I --> J["New resume dialog<br/>see chart 5"]
 ```
 
 ---
 
-## 3. Starting a resume
+## 4. Opening the Builder
+
+The Builder always picks the same resume for the same address, so a refresh never creates a blank resume.
 
 ```mermaid
 flowchart TD
-    A(["Click Start a new resume"]) --> B["Two choices open"]
-    B --> C{"Choice"}
-
-    C -->|Start from scratch| D{"Saved draft exists?"}
-    D -->|Yes| E{"Confirm: replace saved draft?"}
-    E -->|Cancel| F(["Stay on home, draft kept"])
-    E -->|OK| G["Reset to blank resume"]
-    D -->|No| G
-    G --> H(["Open editor"])
-
-    C -->|Import a PDF| I{"Saved draft exists?"}
-    I -->|Yes| J{"Confirm: replace saved draft?"}
-    J -->|Cancel| F
-    J -->|OK| K["Choose PDF file"]
-    I -->|No| K
-    K --> L["Import flow - see chart 6"]
-    L --> M{"Success?"}
-    M -->|Yes| H
-    M -->|No| N(["Show error under the hero buttons"])
+    A(["Open /builder"]) --> L["Load resumes from IndexedDB"]
+    L --> N{"new=1 in the address?"}
+    N -->|Yes| FORM["Create resume form"]
+    N -->|No| I{"id in the address?"}
+    I -->|Yes| E{"Does that resume exist?"}
+    E -->|Yes| OPEN["Open it and remember it<br/>as last edited"]
+    E -->|No| NF["Message: This resume is not on this device<br/>with a link to My Resumes"]
+    I -->|No| LAST{"Last edited resume?<br/>or else the newest one"}
+    LAST -->|Found| REP["Change the address to ?id=...<br/>no extra history entry"]
+    REP --> OPEN
+    LAST -->|None| FIRST["Create your first resume form"]
+    OPEN --> SEC{"section in the address?"}
+    SEC -->|Yes| S1["Open that section"]
+    SEC -->|No| S2["Open the last section used<br/>for this resume"]
 ```
 
 ---
 
-## 4. The editing loop
+## 5. Creating a new resume (the confirmation dialog)
+
+Creating a resume **never** replaces another one.
 
 ```mermaid
 flowchart TD
-    A(["User types in a form field"]) --> B["Named store action<br/>for example updateSkill"]
-    B --> C["Store updates resumeData"]
-    C --> D[("Saved to localStorage")]
-    C --> E["Template re-draws"]
-    C --> F["ATS score recalculates"]
-    E --> G["Preview page grows or shrinks"]
-    G --> H["Page counter and A4 cut lines update"]
-    F --> I["Score ring and tips update"]
-    H --> J(["User sees the result instantly"])
-    I --> J
-```
-
-**Wizard steps:**
-
-```mermaid
-flowchart LR
-    S1["1 Personal<br/>+ links + summary"] --> S2["2 Skills"] --> S3["3 Experience"] --> S4["4 Projects"] --> S5["5 Education"] --> S6["6 Certifications"] --> S7["7 Achievements"]
-    S7 --> DONE(["Check preview, then Download PDF"])
+    A(["Press Create Resume or New resume"]) --> B{"Any resumes saved?"}
+    B -->|No| FORM["Create resume form"]
+    B -->|Yes| D["Dialog: You already have resumes"]
+    D -->|"Continue existing resume"| P["Pick one from the list"]
+    P --> O(["Open that resume"])
+    D -->|"Create new resume"| FORM
+    D -->|"Cancel"| X(["Nothing changes"])
+    FORM --> NAME["Name, career stage,<br/>template, how to start"]
+    NAME --> C["createResume: a new record<br/>with a new id"]
+    C --> DB[("IndexedDB")]
+    C --> O2(["Open the new resume<br/>/builder?id=new-id"])
 ```
 
 ---
 
-## 5. Saving and restoring the draft
+## 6. Ways to start a resume
 
 ```mermaid
 flowchart TD
-    A(["Page loads in the browser"]) --> B{"Data under<br/>ai-resume-builder-store?"}
-    B -->|Yes| D["Read saved data"]
-    B -->|No| C{"Data under old key<br/>ai_resume_studio_store?"}
-    C -->|Yes| C2["Move it to the new key<br/>and delete the old key"]
-    C2 --> D
-    C -->|No| E["Start with a blank resume"]
-
-    D --> F["Repair the data<br/>fill missing lists<br/>fix section order"]
-    F --> G["Store is hydrated"]
-    E --> G
-
-    G --> H{"Which page?"}
-    H -->|Editor| I["Hide the loader and show the editor"]
-    H -->|Home| J{"Draft has real content?"}
-    J -->|Yes| K["Show Continue saved resume"]
-    J -->|No| L["Hide it"]
-```
-
-**Why the loader?** The server cannot see localStorage. Waiting for "hydrated" means the first screen always matches, so there is no error and no flash of an empty resume.
-
----
-
-## 6. Importing a PDF resume
-
-```mermaid
-flowchart TD
-    A(["User picks a PDF"]) --> B{"Ends in .pdf or PDF type?"}
-    B -->|No| X1(["Error: choose a PDF"])
-    B -->|Yes| C{"Size between 1 byte and 8 MB?"}
-    C -->|No| X2(["Error: too big or empty"])
-    C -->|Yes| D{"File starts with %PDF-?"}
-    D -->|No| X3(["Error: not a readable PDF"])
-    D -->|Yes| E["Convert file to Base64"]
-    E --> F["POST /api/ai<br/>action parse-resume-pdf"]
-    F --> G["AI reads the real PDF<br/>Gemini inlineData or OpenRouter file parser"]
-    G --> H["Strict rules:<br/>copy only what is visible<br/>never guess, leave gaps empty"]
-    H --> I["Server cleans the JSON"]
-    I --> J["Browser normalizes:<br/>fill fields, drop empty items,<br/>unique IDs, trim text"]
-    J --> K["setResumeData"]
-    K --> L(["Editor shows the imported resume"])
+    A(["Create resume form"]) --> W{"How do you want to start?"}
+    W -->|Blank| B["Empty resume"]
+    W -->|"Import PDF"| P["Read the PDF with AI<br/>see chart 18"]
+    W -->|"Example resume"| S["Pick 1 of 10 examples<br/>contacts changed to example.com"]
+    W -->|"Copy of my resume"| C["Pick one of your resumes<br/>to copy"]
+    B --> STAGE
+    P --> STAGE
+    S --> STAGE
+    C --> STAGE
+    STAGE{"Career stage"} -->|"Student or Fresher"| F["Education and Projects first"]
+    STAGE -->|"Experienced"| X["Experience first"]
+    F --> NEW(["New resume saved and opened"])
+    X --> NEW
 ```
 
 ---
 
-## 7. AI Summary Studio
-
-```mermaid
-flowchart TD
-    A(["Click the summary button"]) --> B{"Target role AND<br/>at least one skill, job,<br/>project, or education?"}
-    B -->|No| C["Show what to add,<br/>with buttons to jump to each step"]
-    B -->|Yes| D["Ask: fresher or experienced?"]
-    D --> E{"Answer"}
-    E -->|Fresher| F["Ask: graduated or still studying?"]
-    F --> G["Ask: graduation year"]
-    G --> H{"Year valid?<br/>graduated: not in the future<br/>studying: this year or later"}
-    H -->|No| I["Show a clear hint"]
-    H -->|Yes| K
-    E -->|Experienced| J["Ask: years of experience"]
-    J --> K["POST /api/ai<br/>action generate-summary"]
-    K --> L["AI writes 3 sentences, 55-75 words,<br/>only from your details"]
-    L --> M(["Summary appears in the box,<br/>fully editable"])
-```
-
----
-
-## 8. AI Enhance for work bullets
-
-```mermaid
-flowchart TD
-    A(["Write rough notes for a job"]) --> B["Click AI Enhance"]
-    B --> C["POST /api/ai<br/>action enhance-experience"]
-    C --> D{"Notes present and<br/>under 5,000 characters?"}
-    D -->|No| E(["Error shown under the notes"])
-    D -->|Yes| F["AI writes 2-3 bullets<br/>X-Y-Z style, no invented numbers"]
-    F --> G{"Got at least one bullet?"}
-    G -->|No| E
-    G -->|Yes| H["Bullets saved to the experience"]
-    H --> I["Editable box: one bullet per line"]
-    I --> J{"Happy with them?"}
-    J -->|Edit| I
-    J -->|Use my notes instead| K["Bullets cleared,<br/>resume shows the notes"]
-    J -->|Yes| L(["Bullets appear on the resume"])
-```
-
----
-
-## 9. Optimize with AI (review and apply)
-
-```mermaid
-flowchart TD
-    A(["Click Optimize with AI"]) --> B{"Resume has content?"}
-    B -->|No| Z(["Button stays disabled"])
-    B -->|Yes| C["Send the resume to the server"]
-    C --> D["Server sends ONLY narrative text to the AI:<br/>summary, experience notes and bullets,<br/>project and achievement descriptions"]
-    D --> E["AI returns polished wording"]
-    E --> F["Server copies back only allowed fields,<br/>matched by ID, same bullet count"]
-    F --> G["Review window: Original vs Suggested<br/>for every change"]
-    G --> H{"User choice"}
-    H -->|Keep original or Esc| I(["Nothing changes"])
-    H -->|Apply| J["Merge changes into the CURRENT resume by ID"]
-    J --> K(["New rows and recent edits are kept"])
-```
-
----
-
-## 10. Job matching and tailoring
-
-```mermaid
-flowchart TD
-    A(["Job Match section"]) --> B{"Which resume?"}
-    B -->|Upload a PDF| C["Import flow, kept only for this comparison"]
-    B -->|Use saved resume| D["Use the editor draft"]
-    C --> E["Paste or upload the job description<br/>80 to 30,000 characters"]
-    D --> E
-    E --> F["POST /api/ai<br/>action match-job"]
-    F --> G["AI lists up to 14 requirements<br/>with evidence, gaps, and warnings"]
-    G --> H["Server applies the gate"]
-    H --> I{"Field aligned?<br/>Key skills shown?<br/>Experience level fits?<br/>No blockers?<br/>3+ requirements checked?"}
-    I -->|Any No| J(["Show result + reasons.<br/>Sync button locked"])
-    I -->|All Yes| K["Server signs a sync token, valid 15 min"]
-    K --> L["Show result. Sync button unlocked"]
-    L --> M{"Analysed resume differs<br/>from the saved draft?"}
-    M -->|Yes| N{"Confirm replace?"}
-    N -->|Cancel| O(["Nothing changes"])
-    N -->|OK| P
-    M -->|No| P["POST /api/ai<br/>action tailor-resume + token"]
-    P --> Q{"Token valid for THIS<br/>resume and THIS job?"}
-    Q -->|No| R(["403: run the analysis again"])
-    Q -->|Yes| S["AI tailors wording,<br/>keeps every fact, ID, and date"]
-    S --> T["Saved to the editor"]
-    T --> U(["Synced - Open in editor"])
-```
-
----
-
-## 11. The sync token, step by step
+## 7. Autosave
 
 ```mermaid
 sequenceDiagram
-    participant B as Browser
-    participant S as Server /api/ai
-    participant A as AI model
+    participant U as User
+    participant E as Editor
+    participant S as Workspace store
+    participant DB as IndexedDB
 
-    B->>S: match-job (resume, job description)
-    S->>A: Compare resume vs job
-    A-->>S: Requirements, evidence, fit checks
-    S->>S: Apply the 3-check gate
-    alt Gate passed
-        S->>S: token = HMAC-SHA256 of<br/>hash(resume) + hash(job) + expiry 15 min
-        S-->>B: Analysis + syncToken
-    else Gate failed
-        S-->>B: Analysis + reasons (no token)
-    end
-
-    B->>S: tailor-resume (same resume, same job, token)
-    S->>S: Check signature, hashes, and expiry
-    alt Token valid
-        S->>A: Tailor wording, keep facts
-        A-->>S: Tailored resume JSON
-        S-->>B: Tailored resume
-    else Token invalid or expired
-        S-->>B: 403 - run the analysis again
+    U->>E: Types in a field
+    E->>S: updateItem or updatePersonalInfo
+    S->>S: Update the resume in memory and mark it dirty
+    S-->>E: Preview updates at once
+    Note over S: Wait 700 ms after the last key
+    S->>DB: updateResume with expectedUpdatedAt
+    alt Stored copy unchanged
+        DB-->>S: Saved with a new updatedAt
+        S-->>E: Status shows All changes saved
+    else Another tab saved first
+        DB-->>S: ResumeConflictError
+        S-->>E: Status shows Changed in another tab
+    else Storage error
+        DB-->>S: Error
+        S-->>E: Status shows Save failed with Retry
     end
 ```
 
+Adding, deleting, or moving items, and changing the template or section order, save **immediately** instead of waiting 700 ms.
+
 ---
 
-## 12. Reordering and drawing sections
+## 8. The save status
+
+```mermaid
+stateDiagram-v2
+    [*] --> Recovering: App loads
+    Recovering --> Idle: Checks finished
+    Idle --> Saving: You edit
+    Saving --> Saved: Write succeeded
+    Saved --> Saving: You edit again
+    Saving --> Failed: Write failed
+    Failed --> Saving: Retry
+    Saving --> Conflict: Another tab saved first
+    Conflict --> Saving: Keep my version
+    Conflict --> Saved: Load the other version
+```
+
+| Status | Text in the toolbar |
+|---|---|
+| Recovering | *Recovering previous changes…* |
+| Saving | *Saving…* |
+| Saved | *All changes saved* (or *Offline · saved on this device*) |
+| Failed | *Save failed* + **Retry** |
+| Conflict | *Changed in another tab* |
+| Memory mode | *Not saved — storage blocked* |
+
+---
+
+## 9. Refresh, Back, and closing the tab
 
 ```mermaid
 flowchart TD
-    A(["Click Reorder"]) --> B["Reorder window lists 7 sections"]
-    B --> C{"Action"}
-    C -->|Up or Down arrow| D["moveSection"]
-    C -->|Eye icon| E["toggleSectionVisibility"]
-    C -->|Reset to Default| F["resetSectionOrder"]
-    D --> G[("sectionOrder saved")]
-    E --> G
-    F --> G
-    G --> H["Template draws the header first,<br/>always at the top"]
-    H --> I["For each VISIBLE section, in order"]
-    I --> J{"Section has real content?"}
-    J -->|No| K["Skip - draw nothing"]
-    J -->|Yes| L["Draw heading + items"]
-    K --> M(["Clean resume, no empty headings"])
-    L --> M
+    A(["Tab hidden, Back, refresh, or close"]) --> B{"Unsaved edits?"}
+    B -->|No| OK(["Nothing to do"])
+    B -->|Yes| J["Write the unsaved copy to localStorage<br/>fast, finishes while closing"]
+    J --> F["Start saving to IndexedDB"]
+    F --> W{"Could work really be lost?<br/>save failed, conflict,<br/>or memory mode"}
+    W -->|Yes| WARN["Browser asks: Leave site?"]
+    W -->|No| GO(["Page leaves normally"])
+    GO --> NEXT["Next visit: same address,<br/>same resume, same section"]
 ```
 
 ---
 
-## 13. The live preview and page counter
+## 10. Recovering unsaved changes
 
 ```mermaid
 flowchart TD
-    A(["Resume content or template changes"]) --> B["New page element mounts"]
-    B --> C["ResizeObserver starts watching it"]
-    C --> D["Read page height in px"]
-    D --> E["pages = round up of height / 1123"]
-    E --> F{"pages = 1?"}
-    F -->|Yes| G["Green label: 1 Page - Optimal for ATS"]
-    F -->|No| H["Amber label: Multi-Page"]
-    H --> I["Draw a red dashed line<br/>at every 1123 px"]
-    D --> J["Scale page to fit the screen width,<br/>plus manual zoom 35-140%"]
+    A(["App starts"]) --> J{"Unsaved copy in localStorage?"}
+    J -->|No| DONE(["Continue normally"])
+    J -->|Yes| R{"Does the resume still exist?"}
+    R -->|"No, it was deleted"| CLR["Ignore the copy"]
+    R -->|Yes| N{"Is the copy newer<br/>than the saved resume?"}
+    N -->|No| CLR
+    N -->|Yes| V["Save a version:<br/>Before recovering unsaved changes"]
+    V --> U["Save the recovered copy"]
+    U --> M["Message: We recovered unsaved changes"]
+    CLR --> DEL["Remove the copy"]
+    M --> DEL
+    DEL --> DONE
 ```
 
 ---
 
-## 14. Downloading the PDF
+## 11. Two tabs editing the same resume
 
 ```mermaid
-flowchart TD
-    A(["Click Download PDF"]) --> B["Copy the printable-resume-canvas element"]
-    B --> C["Remove .no-print parts:<br/>cut lines and placeholders"]
-    C --> D["Build a print page:<br/>app styles + fonts + A4 rules"]
-    D --> E["Write it into a hidden iframe"]
-    E --> F["Wait for stylesheets and fonts<br/>max 2.5 seconds"]
-    F --> G["Open the browser print dialog"]
-    G --> H["Suggested name: Your_Name_Resume"]
-    H --> I(["User picks Save as PDF"])
-```
+sequenceDiagram
+    participant A as Tab A
+    participant DB as IndexedDB
+    participant B as Tab B
 
-**Print rule:** `@page { size: A4 portrait; margin: 0 }` is placed outside `@media print`, so the browser cannot add its own URL or date to the page.
-
----
-
-## 15. Inside the AI route
-
-```mermaid
-flowchart TD
-    A(["POST /api/ai"]) --> B{"Body is valid JSON?"}
-    B -->|No| X1(["400: body must be valid JSON"])
-    B -->|Yes| C{"action present?"}
-    C -->|No| X2(["400: missing action"])
-    C -->|Yes| D{"Which action?"}
-
-    D --> P1["parse-resume-pdf"]
-    D --> P2["match-job"]
-    D --> P3["tailor-resume"]
-    D --> P4["optimize-resume"]
-    D --> P5["enhance-experience"]
-    D --> P6["generate-summary"]
-    D --> P7["generate-cover-letter"]
-    D -->|Anything else| X3(["400: unknown action"])
-
-    P1 & P2 & P3 & P4 & P5 & P6 & P7 --> V{"Input valid and<br/>within limits?"}
-    V -->|No| X4(["400 with a clear message<br/>or 403 for a bad sync token"])
-    V -->|Yes| G["generateText<br/>prompt with evidence-only rules"]
-    G --> H{"AI_PROVIDER"}
-    H -->|gemini| GM["Gemini + JSON mode"]
-    H -->|openrouter| ORT["OpenRouter + model fallbacks"]
-    GM --> J["Clean and check the reply"]
-    ORT --> J
-    J --> K(["200 with result"])
-    G -.->|error| E{"Busy: 429, 502, 503, 504?"}
-    E -->|Yes| X5(["Same status: AI is busy, try again"])
-    E -->|No| X6(["500 with the error message"])
+    A->>DB: Save, updatedAt becomes T2
+    A-->>B: BroadcastChannel message: saved
+    alt Tab B has no unsaved edits
+        B->>DB: Reload the resume quietly
+    else Tab B has unsaved edits
+        B->>DB: Save with expectedUpdatedAt T1
+        DB-->>B: Conflict, stored copy is T2
+        Note over B: Banner: changed in another tab
+        alt Load the other version
+            B->>DB: Save Tab B edits as a version
+            B->>B: Show the T2 copy
+        else Keep my version
+            B->>DB: Save the T2 copy as a version
+            B->>DB: Save Tab B edits
+        else Save as a new resume
+            B->>DB: Create a new resume from Tab B edits
+        end
+    end
 ```
 
 ---
 
-## 16. AI model retry and fallback
+## 12. Version history
+
+```mermaid
+flowchart TD
+    subgraph Auto["A version is saved automatically"]
+        V1["First save of each visit:<br/>Before this visit's edits"]
+        V2["Every 10 minutes of editing:<br/>Autosave"]
+        V3["Before AI polish"]
+        V4["Before adding GitHub projects"]
+        V5["Before restoring a version"]
+        V6["Before recovery or a tab conflict choice"]
+    end
+    Auto --> DB[("versions table<br/>up to 20 per resume,<br/>oldest removed first")]
+    DB --> H["Version history dialog"]
+    H --> P["Pick a version"]
+    P --> S["Save the current state as a version"]
+    S --> R(["Restore the chosen version"])
+```
+
+---
+
+## 13. Undo and redo
+
+```mermaid
+flowchart LR
+    E["Edit"] --> Q{"Same field within 1 second?"}
+    Q -->|Yes| M["Merge into the last step"]
+    Q -->|No| P["Push a new step<br/>keep the last 100"]
+    P --> C["Clear the redo list"]
+    M --> C
+    U["Ctrl+Z"] --> UP["Move one step back"]
+    R["Ctrl+Shift+Z or Ctrl+Y"] --> RP["Move one step forward"]
+    UP --> SAVE["Autosave the result"]
+    RP --> SAVE
+```
+
+---
+
+## 14. My Resumes actions
+
+```mermaid
+flowchart TD
+    L(["My Resumes list<br/>newest first"]) --> O["Open"] --> B["Builder ?id=..."]
+    L --> RN["Rename"] --> DB[("IndexedDB")]
+    L --> DU["Duplicate"] --> NEW["New record: Name (copy)"] --> DB
+    L --> PDF["Download PDF"] --> PR["Draw it off-screen,<br/>then print"]
+    L --> EX["Export backup .json"]
+    L --> D["Delete"] --> CF{"Confirm?"}
+    CF -->|Yes| RM["Remove the resume<br/>and its versions"] --> DB
+    CF -->|No| L
+    L --> NR["New resume"] --> DLG["Dialog from chart 5"]
+```
+
+---
+
+## 15. Backups: export and import
+
+```mermaid
+flowchart TD
+    subgraph Export
+        E1(["Export one or all"]) --> E2["Build JSON:<br/>format ai-resume-studio-backup,<br/>version, date, resumes"]
+        E2 --> E3(["Download the .json file"])
+    end
+    subgraph Import
+        I1(["Choose a .json file"]) --> I2{"Under 5 MB<br/>and valid JSON?"}
+        I2 -->|No| IE(["Clear error message"])
+        I2 -->|Yes| I3{"Which format?"}
+        I3 -->|"Backup file"| I4["Read every resume"]
+        I3 -->|"One resume record"| I4
+        I3 -->|"Old single draft"| I4
+        I3 -->|"Unknown"| IE
+        I4 --> I5["Repair each record and<br/>give it a NEW id"]
+        I5 --> I6(["Added next to your resumes,<br/>nothing replaced"])
+    end
+```
+
+---
+
+## 16. Moving the old single draft
+
+```mermaid
+flowchart TD
+    A(["App starts"]) --> F{"Already moved once?"}
+    F -->|Yes| DONE(["Continue"])
+    F -->|No| K{"Old key in localStorage?<br/>ai-resume-builder-store<br/>or ai_resume_studio_store"}
+    K -->|No| FLAG
+    K -->|Yes| C{"Does it have real content?"}
+    C -->|No| FLAG
+    C -->|Yes| N["Create a normal resume from it<br/>keep its template, color, order"]
+    N --> MSG["Message: Your earlier draft is now saved"]
+    MSG --> FLAG["Set the moved-once flag<br/>old key kept as an extra copy"]
+    FLAG --> DONE
+```
+
+---
+
+## 17. Sections: order, hide, and draw
+
+```mermaid
+flowchart TD
+    A(["Resume record"]) --> O["sectionOrder:<br/>list of id and visible"]
+    O --> N["normalizeSectionOrder:<br/>remove duplicates and unknown ids,<br/>add missing sections and custom sections"]
+    N --> T["Template"]
+    T --> L{"For each section in order"}
+    L --> V{"Visible?"}
+    V -->|No| SKIP["Skip"]
+    V -->|Yes| H{"Has real content?<br/>isFilled helpers"}
+    H -->|No| SKIP
+    H -->|Yes| DRAW["Draw it with<br/>DynamicSectionsRenderer"]
+
+    U(["User"]) -->|"Move up or down"| O
+    U -->|"Hide or show"| O
+    U -->|"Recommended order"| R["Order for the career stage"] --> O
+    U -->|"Add custom section"| CS["New custom:id entry"] --> O
+```
+
+---
+
+## 18. Importing a PDF resume
+
+```mermaid
+flowchart TD
+    A(["Choose a PDF"]) --> B{"PDF and under 8 MB?"}
+    B -->|No| E(["Clear error message"])
+    B -->|Yes| C["Read the file as Base64"]
+    C --> D["callAi parse-resume-pdf"]
+    D --> S["Server: AI reads the PDF natively<br/>and returns JSON"]
+    S --> N["normalizeResumeData:<br/>drop empty rows, fix ids,<br/>move LinkedIn and GitHub links"]
+    N --> NEW(["Saved as a NEW resume and opened"])
+```
+
+Import works from the create form and from the Builder's **More actions** menu (*Import a PDF as a new resume*). Either way the resume that is open is **not changed**. Missing sections in the PDF stay **empty**; the AI is told not to guess them.
+
+---
+
+## 19. Downloading the PDF
+
+```mermaid
+flowchart TD
+    A(["Download PDF"]) --> W{"Where?"}
+    W -->|"Builder"| C["Use #printable-resume-canvas"]
+    W -->|"My Resumes"| R["Draw the resume off-screen<br/>printRecord"] --> C
+    C --> F["Copy it into a hidden frame<br/>with the page styles"]
+    F --> L["Wait for styles and fonts<br/>up to 2.5 s"]
+    L --> P["Open the print dialog"]
+    P --> S(["User picks Save as PDF"])
+
+    subgraph Rules["Print rules"]
+        R1["@page A4, margin 0<br/>no URL or date added"]
+        R2["Template padding repeated<br/>on every page"]
+        R3["Sections not split<br/>between pages"]
+        R4["no-print items hidden"]
+    end
+    F -.-> Rules
+```
+
+---
+
+## 20. AI suggestion approval
+
+Every AI writing feature follows this pattern. Nothing changes until you accept.
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant M as AI menu
+    participant API as /api/ai
+    participant R as SuggestionReview
+    participant S as Workspace store
+
+    U->>M: Choose Make Concise on a bullet
+    M->>API: rewrite-text with the text and mode
+    API-->>M: suggestion and notes
+    M->>R: Show original next to suggestion
+    U->>R: Edit the suggestion if needed
+    alt Accept
+        R->>S: Replace the text, one undo step
+        S-->>U: Saved, Ctrl+Z brings back the original
+    else Reject
+        R-->>U: Nothing changes
+    end
+```
+
+The seven modes: Improve Writing, Make Concise, Make Professional, Fix Grammar, Improve Clarity, Rewrite as Achievement, Add Relevant Keywords.
+
+---
+
+## 21. AI polish for the whole resume
+
+```mermaid
+flowchart TD
+    A(["AI polish"]) --> B["callAi optimize-resume"]
+    B --> C["Compare each summary, bullet,<br/>and project description by id"]
+    C --> D["List of changes:<br/>original and suggestion"]
+    D --> E{"For each change"}
+    E -->|Accept| AC["Mark accepted"]
+    E -->|Reject| RJ["Mark rejected"]
+    AC --> APPLY
+    RJ --> APPLY
+    APPLY["Apply accepted changes"] --> V["Save a version first:<br/>Before AI polish"]
+    V --> M["Merge onto the CURRENT resume by id<br/>edits made while waiting are kept"]
+    M --> DONE(["Saved, one undo step"])
+```
+
+---
+
+## 22. Resume Analyzer
+
+```mermaid
+flowchart TD
+    START(["Resume to analyze"]) --> SRC{"Saved or upload?"}
+    SRC -->|"Saved resume"| A["Pick one of your resumes"]
+    SRC -->|"Upload a PDF"| UP["callAi parse-resume-pdf"]
+    UP --> UPS["Choose Score it as:<br/>first guess from the PDF"]
+    UPS --> A2["Not saved: no Fix buttons yet"]
+    A2 --> SAVE{"Save as a resume?"}
+    SAVE -->|Yes| NEWR["createResume: a NEW resume,<br/>then it is analyzed as a saved one"]
+    NEWR --> A
+    A --> R["analyzeResume: rules in the browser,<br/>instant, no AI"]
+    A2 --> R
+    R --> ST{"Career stage"}
+    ST -->|"Student or Fresher"| F["Projects and education count,<br/>no penalty for no job"]
+    ST -->|"Experienced"| X["Work history expected"]
+    F --> S
+    X --> S
+    S["Six categories, 100 points:<br/>Contact 15, Summary 10, Skills 15,<br/>Experience and projects 35,<br/>Education 15, Formatting 10"]
+    S --> L["Label: Ready to send, Strong,<br/>Getting there, Needs work"]
+    S --> I["Issues sorted by severity:<br/>why it matters, how to fix"]
+    I --> FIX["Fix button, saved resumes only"] --> B(["Builder at that section"])
+    R --> AIQ["Optional: AI review"] --> AIR["callAi analyze-resume:<br/>grammar, clarity, relevance notes"]
+```
+
+---
+
+## 23. Job Matcher and the tailored copy
+
+```mermaid
+flowchart TD
+    A(["Choose a resume or upload a PDF"]) --> J["Add the job description: paste,<br/>.txt, or PDF via read-job-pdf<br/>80 to 30,000 characters"]
+    J --> M["callAi match-job"]
+    M --> R["Results: match estimate, required and<br/>preferred skills, evidence, keyword gaps,<br/>project alignment, three fit checks"]
+    R --> G{"All three checks pass?"}
+    G -->|No| EXP(["Explain which check failed and why.<br/>No tailoring offered."])
+    G -->|Yes| T["Create tailored version"]
+    T --> TR["callAi tailor-resume with the token"]
+    TR --> N["normalizeResumeData"]
+    N --> NEW["createResume: NEW record<br/>Title - Job title<br/>sourceResumeId and tailoredFor set"]
+    NEW --> MSG(["Message: Created. Your original<br/>resume was not changed. Open?"])
+```
+
+---
+
+## 24. The permission token
+
+```mermaid
+sequenceDiagram
+    participant C as Browser
+    participant S as /api/ai
+    participant AI as AI provider
+
+    C->>S: match-job with resume and job description
+    S->>AI: Analyze with the three fit checks
+    AI-->>S: Result and checks
+    alt All checks pass
+        S->>S: Sign a token with HMAC,<br/>tied to this resume and job, 15 minutes
+        S-->>C: Result and token
+        C->>S: tailor-resume with the token
+        S->>S: Check signature, time, resume, and job
+        alt Token valid
+            S->>AI: Tailor using only facts in the resume
+            AI-->>S: Tailored resume
+            S-->>C: Tailored resume
+        else Token missing, expired, or changed
+            S-->>C: 403, run the analysis again
+        end
+    else A check fails
+        S-->>C: Result with no token
+    end
+```
+
+---
+
+## 25. GitHub Projects
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant P as GitHub page
+    participant G as /api/github
+    participant API as GitHub API
+    participant AI as /api/ai
+
+    U->>P: Enter a username
+    P->>G: GET username
+    G->>API: List public repositories
+    API-->>G: Repositories
+    G-->>P: Up to 100, newest first
+    U->>P: Pick up to 6 repositories
+    loop For each repository
+        P->>G: GET owner and repo
+        G->>API: Languages and README
+        G-->>P: Languages and README, first 8,000 characters
+        P->>AI: describe-project
+        AI-->>P: Title, description, tech stack from README only
+    end
+    P->>U: Show each draft: edit it, or untick it
+    U->>P: Choose a resume and add
+    P->>P: Save a version: Before adding GitHub projects
+    P->>P: Add projects with Code and Live links
+```
+
+---
+
+## 26. Interview Prep
+
+```mermaid
+flowchart TD
+    A(["1. Your resume"]) --> AS{"Saved or upload?"}
+    AS -->|"Saved"| RES["Resume data"]
+    AS -->|"Upload a PDF"| RP["callAi parse-resume-pdf"] --> RES
+    J(["2. The job, optional"]) --> JS{"Paste or upload?"}
+    JS -->|"Paste"| JD["Job description text"]
+    JS -->|".txt file"| JD
+    JS -->|"PDF"| JP["callAi read-job-pdf:<br/>copied word for word"] --> JD
+    RES --> Q["callAi interview-questions<br/>with types and count"]
+    JD --> Q
+    Q --> HAS{"Job description given?"}
+    HAS -->|Yes| QJ["Questions test job requirements.<br/>Label: On your resume, Partly, or Not on your resume"]
+    HAS -->|No| QR["Questions from your resume<br/>and target role"]
+    QJ --> CODE{"Role involves writing code<br/>and Coding is ticked?"}
+    QR --> CODE
+    CODE -->|Yes| CQ["Up to 3 coding questions,<br/>each with sample code and complexity"]
+    CODE -->|No| NC["No coding questions,<br/>the page says why"]
+    CQ --> L["Question cards"]
+    NC --> L
+    L --> SA["Show a sample answer and code:<br/>hidden until you ask, Copy button"]
+    L --> P["Type an answer or code"]
+    P --> F["callAi interview-feedback<br/>same resume and job"]
+    F --> R["Ratings 1 to 5: accuracy, clarity,<br/>completeness, communication"]
+    R --> S["Strengths, improvements,<br/>outline of a better answer"]
+    S --> P
+```
+
+---
+
+## 27. Inside the AI route
+
+```mermaid
+flowchart TD
+    A(["POST /api/ai"]) --> SZ{"Body over 13 MB?"}
+    SZ -->|Yes| E413(["413: request too large"])
+    SZ -->|No| J{"Valid JSON?"}
+    J -->|No| E400(["400: invalid request"])
+    J -->|Yes| ACT{"Known action?"}
+    ACT -->|No| E400
+    ACT -->|Yes| FE{"Feature enabled<br/>for this plan?"}
+    FE -->|No| E403(["403: not available"])
+    FE -->|Yes| RL{"Under the rate limit?"}
+    RL -->|No| E429(["429: friendly message<br/>and wait time"])
+    RL -->|Yes| V{"Action fields valid?"}
+    V -->|No| E400
+    V -->|Yes| P["Build the prompt with the<br/>evidence-only rules"]
+    P --> CALL["Call the AI provider<br/>JSON mode when needed"]
+    CALL --> CL["extractCleanJson"]
+    CL --> OK(["200: result"])
+    CALL -->|"Provider failed"| E5(["Clear error,<br/>no resume text logged"])
+```
+
+---
+
+## 28. Rate limits
+
+```mermaid
+flowchart TD
+    A(["Request from a visitor"]) --> K["Key: route name and visitor IP"]
+    K --> M{"Requests in the last minute<br/>under the limit?<br/>AI 10, GitHub 20"}
+    M -->|No| WM(["429: wait a few seconds"])
+    M -->|Yes| D{"Requests today<br/>under the limit?<br/>AI 150, GitHub 300"}
+    D -->|No| WD(["429: today's free requests used,<br/>editing still works"])
+    D -->|Yes| OK(["Count it and continue"])
+```
+
+AI limits can be changed with `AI_RATE_LIMIT_PER_MINUTE` and `AI_RATE_LIMIT_PER_DAY`. Counts are kept in the server's memory, per server instance.
+
+---
+
+## 29. AI model retry and fallback
 
 ```mermaid
 flowchart TD
@@ -450,31 +735,19 @@ flowchart TD
     G -->|Other error| ERR
 ```
 
----
-
-## 17. How the ATS score is calculated
+With `AI_PROVIDER=openrouter`, the same idea applies: the main OpenRouter model first, then each backup model in `OPENROUTER_FALLBACK_MODELS`. The Analyzer, Job Matcher, and Interview Prep can each have their own model first:
 
 ```mermaid
 flowchart TD
-    A(["Any change to the resume"]) --> B["Start at 0"]
-    B --> C["+5 each: name, email, phone, location"]
-    C --> D["+5: summary longer than 30 characters"]
-    D --> E{"Filled skills"}
-    E -->|5 or more| E1["+20"]
-    E -->|1 to 4| E2["+10"]
-    E -->|0| E3["+0"]
-    E1 & E2 & E3 --> F{"Filled work experience?"}
-    F -->|Yes| F1["+15, and +10 more if it has real details"]
-    F -->|No| F2["+0"]
-    F1 & F2 --> G["+15 if at least one project"]
-    G --> H["+10 if at least one education entry"]
-    H --> I["+5 if at least one link"]
-    I --> J["Score out of 100.<br/>Every missed point becomes a tip"]
-    J --> K{"Score"}
-    K -->|80 or more| K1["Green - Optimized"]
-    K -->|50 to 79| K2["Amber - Needs Polish"]
-    K -->|Under 50| K3["Red - Needs Polish"]
-    K -->|Exactly 100| K4(["Confetti!"])
+    A(["AI request from a tool"]) --> O{"Tool has its own model?<br/>OPENROUTER_MODEL_ANALYZER,<br/>_JOB_MATCH, _INTERVIEW"}
+    O -->|No| MAIN["Ask OPENROUTER_MODEL<br/>then the backup list"]
+    O -->|Yes| OWN["Ask the tool's model,<br/>main model listed as backup"]
+    OWN --> R{"Refuses to turn<br/>reasoning off?"}
+    R -->|Yes| LOW["Retry with short hidden reasoning<br/>and remember this model"] --> OK
+    R -->|No| OK{"Usable JSON<br/>within 25 s?"}
+    OK -->|Yes| DONE(["Answer"])
+    OK -->|No| MAIN
+    MAIN --> DONE
 ```
 
-➡️ Next: **[5. Directory Map — every folder explained](./05-DIRECTORY-MAP.md)**
+➡️ Next: **[5. Directory Map](./05-DIRECTORY-MAP.md)**

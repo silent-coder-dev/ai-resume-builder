@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { ZoomIn, ZoomOut, RotateCcw, FileText } from 'lucide-react';
 
 interface ResumeCanvasContainerProps {
@@ -97,16 +96,12 @@ export const ResumeCanvasContainer: React.FC<ResumeCanvasContainerProps> = ({
         >
           {/* Visual Canvas Shadow Wrapper */}
           <div className="relative rounded-xl p-[1px] bg-gradient-to-b from-slate-200/80 to-slate-200/30 shadow-[0_15px_40px_-15px_rgba(0,0,0,0.1)] print:shadow-none! print:p-0! print:bg-transparent!">
-            <AnimatePresence mode="wait">
-              <motion.div
+            {/* A new key per template replays the short fade-in when the template changes. */}
+            <div
                 key={activeTemplate}
                 ref={setContentNode}
                 id="printable-resume-canvas"
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8 }}
-                transition={{ duration: 0.18 }}
-                className="w-full bg-white rounded-lg overflow-hidden select-text relative print:rounded-none! print:overflow-visible!"
+                className="w-full animate-[canvas-in_150ms_ease-out] bg-white rounded-lg overflow-hidden select-text relative print:rounded-none! print:overflow-visible!"
                 style={{ minHeight: `${A4_PAGE_HEIGHT}px` }}
               >
                 {children}
@@ -125,8 +120,7 @@ export const ResumeCanvasContainer: React.FC<ResumeCanvasContainerProps> = ({
                     <div className="w-full border-b-2 border-dashed border-red-400/70" />
                   </div>
                 ))}
-              </motion.div>
-            </AnimatePresence>
+            </div>
           </div>
         </div>
       </div>

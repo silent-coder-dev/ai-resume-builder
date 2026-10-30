@@ -1,30 +1,35 @@
 # 2. Approaches — How It Is Built and Why
 
-> **Read time:** about 15 minutes
+> **Read time:** about 18 minutes
 > **Before this:** [1. Problem and Solution](./01-PROBLEM-AND-SOLUTION.md) · **Next:** [3. Design System](./03-DESIGN-SYSTEM.md)
 
-This page explains **every main decision** in the project: what we chose, how it works, and why we chose it over other options. It is written in simple English, so you do not need to be an expert to follow it.
+This page explains **every main decision** in the project: what we chose, how it works, and why. It is written in simple English, so you do not need to be an expert to follow it.
 
 ---
 
 ## Table of contents
 
 1. [The big picture](#1-the-big-picture)
-2. [Saving data: one store in the browser](#2-saving-data-one-store-in-the-browser)
-3. [The resume data model](#3-the-resume-data-model)
-4. [The editor: a 7-step wizard](#4-the-editor-a-7-step-wizard)
-5. [Templates: one engine, 11 looks](#5-templates-one-engine-11-looks)
-6. [The live A4 preview](#6-the-live-a4-preview)
-7. [PDF download: the browser print engine](#7-pdf-download-the-browser-print-engine)
-8. [AI: one server route, many actions](#8-ai-one-server-route-many-actions)
-9. [Keeping the AI honest](#9-keeping-the-ai-honest)
-10. [Importing a PDF resume](#10-importing-a-pdf-resume)
-11. [Job matching and the 3-check gate](#11-job-matching-and-the-3-check-gate)
-12. [The ATS score](#12-the-ats-score)
-13. [Safety, privacy, and limits](#13-safety-privacy-and-limits)
-14. [Quality checks](#14-quality-checks)
-15. [Options we did not choose](#15-options-we-did-not-choose)
-16. [The home page](#16-the-home-page)
+2. [Pages and navigation](#2-pages-and-navigation)
+3. [Saving data: a storage service on IndexedDB](#3-saving-data-a-storage-service-on-indexeddb)
+4. [Many resumes: the resume record](#4-many-resumes-the-resume-record)
+5. [Autosave and the save status](#5-autosave-and-the-save-status)
+6. [Never losing work: recovery, tabs, versions, undo](#6-never-losing-work-recovery-tabs-versions-undo)
+7. [Creating a new resume safely](#7-creating-a-new-resume-safely)
+8. [Backups and old drafts](#8-backups-and-old-drafts)
+9. [The resume data model and sections](#9-the-resume-data-model-and-sections)
+10. [The editor (workspace)](#10-the-editor-workspace)
+11. [Templates and the live preview](#11-templates-and-the-live-preview)
+12. [PDF download](#12-pdf-download)
+13. [AI: one server route, many actions](#13-ai-one-server-route-many-actions)
+14. [Keeping the AI honest](#14-keeping-the-ai-honest)
+15. [The Resume Analyzer](#15-the-resume-analyzer)
+16. [The Job Matcher and tailored copies](#16-the-job-matcher-and-tailored-copies)
+17. [GitHub Projects](#17-github-projects)
+18. [Interview Prep](#18-interview-prep)
+19. [Safety, privacy, and limits](#19-safety-privacy-and-limits)
+20. [Quality checks and tests](#20-quality-checks-and-tests)
+21. [Options we did not choose](#21-options-we-did-not-choose)
 
 ---
 
@@ -34,433 +39,574 @@ The website has **two parts**:
 
 | Part | Where it runs | What it does |
 |---|---|---|
-| **The app** (pages, forms, preview, PDF) | In the user's browser | Everything the user sees and touches |
-| **The AI route** (`/api/ai`) | On the server (Vercel) | Talks to the AI provider. Keeps the API key secret. |
+| **The app** (pages, editor, preview, PDF, storage) | In the user's browser | Everything the user sees and touches |
+| **Two server routes** (`/api/ai`, `/api/github`) | On the server (Vercel) | Talk to the AI provider and to GitHub. Keep secrets on the server. |
 
 ```
- Browser (the app)                          Server
-┌──────────────────────────┐   POST    ┌──────────────────┐   HTTPS   ┌──────────────┐
-│ Home page  ·  Editor     │ ───────▶  │  /api/ai route   │ ────────▶ │ Gemini or    │
-│ Live preview · PDF       │ ◀───────  │  (checks input,  │ ◀──────── │ OpenRouter   │
-│ Saved draft (localStorage)│   JSON   │   calls the AI)  │           │ AI models    │
-└──────────────────────────┘           └──────────────────┘           └──────────────┘
+ Browser (the app)                              Server
+┌──────────────────────────────┐   POST   ┌───────────────────┐  HTTPS  ┌──────────────┐
+│ Home · Builder · My Resumes  │ ───────▶ │ /api/ai           │ ──────▶ │ Gemini or    │
+│ Analyzer · Job Matcher · …   │ ◀─────── │ (limits, checks,  │ ◀────── │ OpenRouter   │
+│                              │   JSON   │  calls the AI)    │         └──────────────┘
+│ IndexedDB: all your resumes  │          ├───────────────────┤  HTTPS  ┌──────────────┐
+│ localStorage: settings only  │ ───────▶ │ /api/github       │ ──────▶ │ GitHub API   │
+└──────────────────────────────┘   GET    └───────────────────┘         └──────────────┘
 ```
 
 **Why this approach?**
 
-- **Fast:** typing, switching templates, and the preview all happen in the browser. No waiting for a server.
-- **Private:** there is no database. The resume lives in the user's own browser.
-- **Safe:** the AI API key is only on the server. The browser never sees it.
-- **Cheap to host:** the server only works when someone presses an AI button.
+- **Fast:** typing, switching templates, and the preview all happen in the browser.
+- **Private:** there is no database and no account. Resumes live in the user's own browser.
+- **Safe:** API keys stay on the server. The browser never sees them.
+- **Cheap to host:** the server only works when someone uses an AI or GitHub feature.
 
-**Tech stack:** Next.js 16 (App Router) · React 19 · TypeScript 5 (strict) · Tailwind CSS 4 · Zustand 5 · Framer Motion · Lucide icons · Google Gen AI SDK.
+**Tech stack:** Next.js 16 (App Router) · React 19 · TypeScript 5 (strict) · Tailwind CSS 4 · Zustand 5 · IndexedDB · Lucide icons · Google Gen AI SDK · Vitest · Playwright.
 
 ---
 
-## 2. Saving data: one store in the browser
+## 2. Pages and navigation
 
-**File:** `src/store/useResumeStore.ts`
-
-All resume data lives in **one Zustand store**. Think of it as one shared box that every part of the app can read from.
-
-### What is inside the store
-
-| Field | What it holds |
+| Address | Page |
 |---|---|
-| `resumeData` | The whole resume (personal info, skills, experience, and so on) |
-| `activeTemplate` | Which of the 11 templates is selected |
-| `accentColor` | The chosen accent color (hex code) |
-| `sectionOrder` | The order of the 7 sections and whether each is shown or hidden |
+| `/` | Home page |
+| `/builder` | Resume Builder (the workspace) |
+| `/resumes` | My Resumes |
+| `/analyzer` | Resume Analyzer |
+| `/job-match` | Job Matcher |
+| `/github` | GitHub Projects |
+| `/interview` | Interview Prep |
+| `/settings` | Settings |
+| `/privacy` | Privacy & Data |
 
-### How changes happen
+All app pages (everything except the home page) sit in one **route group**, `src/app/(studio)/`. They share one layout, the **App Shell** (`src/components/shell/AppShell.tsx`):
 
-Every change goes through a **named action**, for example `updateSkill`, `addExperience`, or `moveSection`. Components never edit the data directly.
+- **Desktop:** a left sidebar with every tool. It can collapse to icons. It collapses by itself on narrow screens and in the Builder, unless the user chose otherwise.
+- **Phone:** a top bar with a menu button that opens the same links in a dialog.
+- A **"Skip to content"** link for keyboard users.
 
-**Why?** If a component copies the data, edits it, and writes it back, it can overwrite a change that happened a moment earlier. Named actions always work on the latest data, so nothing is lost.
+**Why one shell?** Every tool needs the same resume list, the same save status, and the same warnings. Putting them in one place means they always behave the same.
 
-### How saving works
+### The Builder address
 
-- The store uses Zustand's `persist` feature to save to **localStorage** under the key **`ai-resume-builder-store`**.
-- Only the four fields above are saved. Temporary things (like an open menu) are not.
-- Saving is wrapped in `try / catch`. If the browser blocks storage (private mode, full disk), the app keeps working — it just cannot save.
+The Builder always knows which resume to open:
 
-### Repairing old or broken saved data
+| Address | What opens |
+|---|---|
+| `/builder?id=abc` | Resume `abc` |
+| `/builder` | The last resume you edited (the address is updated to include its `id`) |
+| `/builder` with no resumes | A "create your first resume" form |
+| `/builder?new=1` | The create form |
+| `/builder?id=abc&section=projects` | Resume `abc`, open at Projects |
 
-Saved data can be old (from an earlier version) or damaged. When the app loads saved data, it **repairs it first**:
-
-- Missing lists (for example, no `certifications`) become empty lists.
-- The section order is cleaned: unknown sections are removed, duplicates are removed, and missing sections are added back.
-- Drafts saved under the **old key** (`ai_resume_studio_store`) are moved to the new key once, so no user loses their work.
-
-### Avoiding the "flash" problem (hydration)
-
-The server builds the first HTML of the page, but the server **cannot see localStorage**. So the server always thinks the resume is empty. If the browser then showed the saved resume straight away, React would see two different pages and complain (this is called a *hydration mismatch*).
-
-**Our approach:** a small hook, `useStoreHydrated()` (`src/store/useStoreHydrated.ts`), tells components when the saved data is ready.
-
-- The editor shows a short *"Opening your resume…"* message until then.
-- The home page only shows *"Continue saved resume"* after it knows a draft exists.
-
-Result: no errors, no flash of an empty resume.
+Because the resume `id` is in the address, **refresh and Back always land on the same resume**.
 
 ---
 
-## 3. The resume data model
+## 3. Saving data: a storage service on IndexedDB
 
-**File:** `src/types/resume.ts`
+### What we use
+
+Resumes are saved in **IndexedDB**, a database built into every modern browser. Pages never talk to IndexedDB directly. They use a small **storage service**:
+
+| File | Job |
+|---|---|
+| `src/lib/storage/backend.ts` | Opens the database. Has a memory-only backup for browsers that block storage. |
+| `src/lib/storage/resumeRepository.ts` | `createResume`, `getResume`, `getAllResumes`, `updateResume`, `renameResume`, `deleteResume`, `duplicateResume`, `saveVersion`, `listVersions`, `deleteAllData`, … |
+| `src/lib/storage/backup.ts` | JSON export and import |
+| `src/lib/storage/recovery.ts` | Old-draft migration and the unsaved-changes copy |
+
+The database is called `ai-resume-studio` and has three tables:
+
+| Table | Holds |
+|---|---|
+| `resumes` | One row per resume |
+| `versions` | Saved versions (up to 20 per resume) |
+| `meta` | Small facts, like which resume was edited last |
+
+`localStorage` is used only for two small things: your **settings** (`ai-resume-studio:preferences`) and the **unsaved-changes copy** (`ai-resume-studio:unsaved-changes`).
+
+### Why IndexedDB and not localStorage?
+
+| | localStorage (old design) | IndexedDB (now) |
+|---|---|---|
+| Space | About 5 MB for the whole site | Much more |
+| Many resumes | Awkward — one big text blob | Natural — one row each |
+| Safe updates | Whole blob rewritten every time | One row at a time, in a transaction |
+| Version history | Hard | A separate table |
+
+### If the browser blocks storage
+
+Some private windows block IndexedDB. Then the app switches to **memory mode**: it still works, shows a clear banner ("This browser is not allowing saved data…"), and warns before you leave the page. You can still download a PDF or export a backup.
+
+### Why a service and not direct calls?
+
+- One place to change if the storage ever moves (for example, to cloud sync).
+- Easy to test: the unit tests run the same service against a fake IndexedDB.
+
+---
+
+## 4. Many resumes: the resume record
+
+Each resume is saved as one **record**:
 
 ```ts
-ResumeData {
-  personalInfo   // name, target role, email, phone, location, summary
-  links[]        // GitHub, LinkedIn, portfolio …
-  skills[]       // one skill per row
-  experiences[]  // company, role, dates, rough notes, bullet points
-  projects[]     // title, tech stack, description
-  education[]    // degree, institution, field, year, marks
-  certifications[]
-  achievements[]
-}
+type ResumeRecord = {
+  id: string;
+  title: string;             // "Java Developer Resume"
+  createdAt: string;
+  updatedAt: string;
+  careerStage: 'student' | 'fresher' | 'experienced' | null;
+  templateId: string;        // "modern"
+  accentColor: string;       // "#4f46e5"
+  sectionOrder: SectionItem[];
+  data: ResumeData;          // the actual resume content
+  schemaVersion: number;     // 2
+  sourceResumeId?: string;   // set on copies and tailored versions
+  tailoredFor?: string;      // job title, for tailored versions
+};
 ```
 
-Every list item has a unique **`id`**. All edits find items by `id`, never by position. This keeps edits correct even when items are added, removed, or reordered.
+**Why keep template, color, and section order inside the record?** So each resume looks the way you left it. Changing the template of your "Internship" resume does not change your "Java" resume.
 
-### "Filled" checks
+**Why `schemaVersion`?** If the data shape changes in future, the app knows which records need repairing. Every record is passed through `coerceResumeRecord` when it is read, so old or damaged data is fixed instead of crashing the page.
 
-**File:** `src/utils/resumeContent.ts`
-
-When a user clicks "Add Skill" but types nothing, the app has an empty row. We do not want empty rows to:
-
-- show up as blank boxes on the resume,
-- raise the ATS score,
-- count as "evidence" for the AI.
-
-So we have small helper checks like `isFilledSkill`, `isFilledExperience`, and `hasResumeContent`. Templates, the ATS score, and the AI features all use the **same** checks, so they always agree.
+The whole app reads and changes the open resume through **one Zustand store**, `src/store/useWorkspaceStore.ts`. Components never write to storage themselves.
 
 ---
 
-## 4. The editor: a 7-step wizard
+## 5. Autosave and the save status
 
-**File:** `src/components/wizard/FormWizard.tsx`
+### How it works
 
-The form is split into 7 steps:
+1. You type. The store updates the resume in memory right away, so the preview changes instantly.
+2. The store waits **700 ms** after your last key press, then saves to IndexedDB.
+3. Bigger actions (adding or deleting an item, moving a section, changing the template) save **immediately**.
+4. When the tab is hidden or closed, the store saves at once.
 
-`Personal → Skills → Experience → Projects → Education → Certifications → Achievements`
+### The save status
 
-**Why steps instead of one long form?**
+The toolbar always shows one of these:
 
-- A long form feels heavy. Small steps feel easy and give a sense of progress.
-- On a phone, one long form means endless scrolling.
-
-**Small details that make the flow smooth:**
-
-- The active tab slides with an animation and scrolls itself into view.
-- Each step opens at the top.
-- Empty steps show a short friendly hint (for example: *"Freshers can skip this step"*).
-- Work experience has an **"I currently work here"** checkbox that shows "Present".
-- AI-written bullet points are **editable** (one bullet per line) and can be removed with *"Use my notes instead"*.
-- Every AI error appears right next to the button that caused it.
-
-**Desktop vs mobile:**
-
-- **Desktop:** the form is on the left and the live preview is on the right.
-- **Mobile:** an **Edit Form / Live Preview** switcher sticks just under the header. Its position is measured from the real header height, so it never hides behind it.
-
----
-
-## 5. Templates: one engine, 11 looks
-
-**File:** `src/components/preview/AllTemplates.tsx`
-
-All 11 templates share **one section engine** called `DynamicSectionsRenderer`. Each template only designs its own **header** (name, title, contact details) and page frame.
-
-```
-Template = its own header design  +  the shared section engine
-```
-
-**Why?**
-
-- A fix or new feature in a section (for example, how education is shown) works in **all 11 templates at once**.
-- The section order and show/hide settings work everywhere with no extra code.
-
-**Rules every template follows:**
-
-| Rule | Why |
+| Status | Meaning |
 |---|---|
-| Fixed width of 794 px and a minimum height of 1123 px | This is exactly one A4 page at 96 DPI |
-| A section with no real content is not drawn at all | No empty headings or lines on the resume |
-| Contact details show separators only between values that exist | No stray "•" or "\|" when a field is empty |
-| Placeholder text ("Your Full Name") is shown faded and is **removed from the PDF** | Helpful while editing, never printed by mistake |
-| Skill levels (Beginner / Intermediate / Professional) are not printed | They help the AI, but look odd on a resume |
-| `break-inside: avoid` on sections and items | Reduces awkward cuts across pages |
+| *Saving…* | A save is running |
+| *All changes saved* (with time) | Everything is stored |
+| *Offline · saved on this device* | No internet; saving still works because storage is local |
+| *Save failed* + **Retry** | Storage refused the save |
+| *Changed in another tab* | The same resume was edited in another tab — see below |
+| *Not saved — storage blocked* | The browser blocks storage (memory mode) |
+| *Recovering previous changes…* | Unsaved edits from last time are being restored |
 
-**Section order:** the user can move sections up or down and hide them in the **Reorder** window. The name and contact details always stay at the top, because ATS systems expect them there.
+### Why debounce?
 
----
+Saving on every key press would write to the database dozens of times per sentence. Waiting 700 ms still feels instant but writes far less.
 
-## 6. The live A4 preview
+### Leaving the page
 
-**File:** `src/components/preview/ResumeCanvasContainer.tsx`
-
-- The resume is always drawn at real A4 size (794 × 1123 px), then **scaled down** to fit the screen. This keeps the preview identical to the PDF.
-- A **ResizeObserver** watches the size of the resume page. When the content grows, the app recalculates:
-  - the page count ("1 Page (Optimal for ATS)" or "Multi-Page"),
-  - where to draw the **red dashed A4 cut lines**.
-- When the user switches templates, the new page is watched right away, so the page count stays correct.
-- Zoom buttons (− / + / fit) let the user zoom between 35% and 140%.
+The browser's "Leave site?" warning appears **only** when work could really be lost: a save failed, there is an unresolved conflict, or the browser is in memory mode. We do not show it on every exit, because a warning that always appears teaches people to ignore it.
 
 ---
 
-## 7. PDF download: the browser print engine
+## 6. Never losing work: recovery, tabs, versions, undo
 
-**File:** `src/utils/exportPdf.ts`
+### Unsaved-changes copy (crash recovery)
 
-We use the **browser's own "Save as PDF"** instead of turning the page into a picture.
+When the tab is hidden or closed and a save has not finished, the store writes a small copy of the open resume to `localStorage` (this is fast and finishes even while the page is closing). On the next visit:
 
-**How it works, step by step:**
+- If the saved resume is older than this copy, the copy is restored and the status shows *Recovering previous changes…*.
+- A version called **"Before recovering unsaved changes"** is saved first, so the restore can be undone.
+- If the resume was deleted on purpose, the copy is ignored.
 
-1. Copy the resume page (`#printable-resume-canvas`).
-2. Remove editor-only parts (cut lines, placeholders) — anything with the `no-print` class.
-3. Put the copy inside a **hidden iframe**, together with the app's styles and fonts.
-4. Wait until the styles and fonts are loaded (with a 2.5 s safety limit).
-5. Open the print dialog. The file name is suggested as `Your_Name_Resume`.
+### Two tabs
 
-**Print rules** (`src/app/globals.css`):
+Each save checks that the resume in storage has not changed since this tab loaded it (`updateResume(record, { expectedUpdatedAt })`). If another tab saved in between, this tab **does not overwrite it**. Instead it shows a choice:
 
-- `@page { size: A4 portrait; margin: 0; }` sits **outside** `@media print`. With zero page margin, the browser has no space to add its own URL, date, or page number.
-- Colors are forced to print exactly (`print-color-adjust: exact`), so colored banners and lines show up.
+- **Load the other version** — show the newer copy from the other tab, or
+- **Keep my version** — save this tab's copy over it, or
+- **Save as a new resume** — keep both.
 
-**Why print instead of an image-based PDF?**
+Before either copy wins, the one being replaced is saved as a version, so neither is lost.
 
-| Browser print (our choice) | Screenshot → PDF |
+Tabs also tell each other about saves through a `BroadcastChannel`, so a tab with no local edits quietly loads the newer copy and the My Resumes list stays up to date.
+
+### Version history
+
+Up to **20 versions** per resume are kept. A version is saved automatically:
+
+- before the first change of each visit ("Before this visit's edits"),
+- every 10 minutes while editing,
+- before AI polishing, GitHub imports, restoring a version, recovery, and conflict choices.
+
+You can open **Version history** from the toolbar and restore any version. Restoring also saves the current state first, so nothing is lost.
+
+### Undo and redo
+
+The editor keeps the last **100 steps**. Typing in one field within one second counts as one step, so undo does not go letter by letter. Shortcuts: **Ctrl/Cmd+Z** (undo), **Ctrl/Cmd+Shift+Z** or **Ctrl+Y** (redo).
+
+---
+
+## 7. Creating a new resume safely
+
+The old design had one draft, and "new resume" replaced it. Now **creating a new resume never touches an existing one**.
+
+When you press **Create Resume** and you already have resumes, one dialog appears (`NewResumeDialog.tsx`):
+
+| Choice | What happens |
 |---|---|
-| Real text — ATS can read it | Text becomes a picture — ATS cannot read it |
-| Sharp at any zoom | Blurry when zoomed |
-| Small file size | Large file size |
-| Links stay clickable | Links are lost |
+| **Continue existing resume** | Shows your resumes; pick one to open |
+| **Create new resume** | Shows the create form |
+| **Cancel** | Nothing changes |
+
+The create form (`CreateResumeForm.tsx`) asks for:
+
+- a **name** (a suggestion is filled in),
+- the **career stage** (Student, Fresher, Experienced),
+- a **template**, and
+- how to start: **Blank**, **Import PDF**, **Example resume** (10 roles), or **Copy of one of your resumes**.
+
+Importing a PDF from inside the Builder (**More actions → Import a PDF as a new resume**) also creates a new resume; the open one is not changed.
+
+Example resumes use made-up contact details (`example.com`), so a real person's email can never end up on someone else's resume.
 
 ---
 
-## 8. AI: one server route, many actions
+## 8. Backups and old drafts
 
-**File:** `src/app/api/ai/route.ts`
+### JSON export and import
 
-There is only **one** AI endpoint: `POST /api/ai`. The request says which **action** it wants:
+- **Export** one resume (toolbar or My Resumes) or all resumes (My Resumes or Privacy & Data) as a `.json` file.
+- **Import** a `.json` file (up to 5 MB). Imported resumes always get **new IDs**, so they are added next to your resumes and never replace one.
+- The importer also accepts a single resume record and the old single-draft format.
 
-| Action | Used by | What it returns |
+### Old drafts from the previous version
+
+Before this version, the site kept one draft in `localStorage` (`ai-resume-builder-store`, and earlier `ai_resume_studio_store`). On the first visit after the update, that draft is **copied into IndexedDB as a normal resume**, once. The old key is left in place as an extra copy (a flag stops it being imported twice). **Delete all data** on *Privacy & Data* removes it too.
+
+---
+
+## 9. The resume data model and sections
+
+`src/types/resume.ts` defines the content:
+
+| Part | Fields |
+|---|---|
+| `personalInfo` | name, title, email, phone, location, **LinkedIn**, **GitHub**, **portfolio**, summary |
+| Lists | skills, experiences, **internships**, projects, education, certifications, achievements, **languages**, other links |
+| `customSections` | your own sections, each with a title and items |
+
+### Sections
+
+Every section has a key (`summary`, `education`, `custom:abc`, …). The **section order** is a list of `{ id, visible }`. You can move or hide each section.
+
+The **career stage** decides the recommended order:
+
+| Stage | Recommended order |
+|---|---|
+| Student / Fresher | Summary → Education → Projects → Skills → Internships → Certifications → Achievements → Experience → Languages |
+| Experienced | Summary → Experience → Skills → Projects → Education → Certifications → Achievements → Internships → Languages |
+
+`normalizeSectionOrder` repairs any order it reads: it removes duplicates and unknown keys and adds missing sections, so a damaged order can never hide a section forever.
+
+### Two kinds of data cleanup
+
+`src/utils/normalizeResumeData.ts` has two modes:
+
+| Function | Used for | Empty rows |
 |---|---|---|
-| `parse-resume-pdf` | PDF import | The resume as structured JSON |
-| `generate-summary` | AI Summary Studio | A 3-sentence summary (plain text) |
-| `enhance-experience` | AI Enhance button | 2–3 bullet points (JSON list) |
-| `optimize-resume` | Optimize with AI | The resume with polished wording only |
-| `match-job` | Job Match | A full fit analysis + an optional sync token |
-| `tailor-resume` | Sync resume with JD | The tailored resume (needs a valid sync token) |
-| `generate-cover-letter` | API only (no button yet) | A cover letter (plain text) |
+| `normalizeResumeData` | AI output and imports | **Dropped** |
+| `coerceResumeData` | Saved resumes | **Kept** (you may be halfway through typing one) |
 
-**Calling the route from the browser:** every feature uses one helper, `callAi()` (`src/utils/aiClient.ts`). It turns network failures, timeouts, and non-JSON error pages into short, clear messages for the user.
+Both give every item a unique ID and move LinkedIn, GitHub, and portfolio links from the general links list into their own fields.
 
-### Choosing the AI provider
+---
 
-Set with environment variables on the server:
+## 10. The editor (workspace)
 
-| `AI_PROVIDER` | Models used |
+The Builder (`src/components/workspace/Workspace.tsx`) has three areas:
+
+```
+┌──────────────┬─────────────────────────┬─────────────────────┐
+│ Section list │ Editor for one section  │ Live A4 preview     │
+│ (move, hide, │ (fields, AI buttons,    │ (selected template) │
+│  add custom) │  Previous / Next)       │                     │
+└──────────────┴─────────────────────────┴─────────────────────┘
+       Toolbar: name · save status · undo/redo · template · AI polish ·
+                analyze · versions · download PDF · more
+```
+
+- **Desktop:** all three side by side.
+- **Tablet and phone:** an **Edit / Preview** switch, and the section list becomes a picker.
+- The preview uses React's `useDeferredValue`, so typing stays smooth even on slow phones.
+- The last section you opened is remembered for each resume.
+
+**Why one section at a time and not a long form?** A long form is tiring, and people lose their place. One section with clear Previous / Next buttons is calmer, and the section list shows where you are.
+
+---
+
+## 11. Templates and the live preview
+
+- **11 templates** live in `src/components/preview/AllTemplates.tsx` and are registered once in `templateCatalog.tsx` (`TEMPLATE_CATALOG`, `COLOR_OPTIONS`).
+- Every template receives the same props: `{ data, accentColor, sectionOrder }`. Templates are **pure**: they never read the store, so the same template works in the editor, the home page, the template picker, and PDF export.
+- All templates render sections through one shared `DynamicSectionsRenderer`, so a new section (like Languages) only needs to be added once.
+- Every template is **794 px wide** (A4 at 96 DPI). The preview scales it down to fit the screen and draws page-break lines.
+- Empty sections and empty rows are never shown (`isFilled*` helpers in `src/utils/resumeContent.ts`). Placeholder text in the preview has the `no-print` class, so it never reaches the PDF.
+
+---
+
+## 12. PDF download
+
+We use the **browser's own print engine**:
+
+1. `exportPdf.ts` copies the resume (`#printable-resume-canvas`) into a hidden frame with the page styles and fonts.
+2. It waits for styles and fonts to finish loading (up to 2.5 seconds).
+3. It opens the print dialog; the user chooses **Save as PDF**.
+
+From My Resumes, a resume that is not open is first drawn off-screen (`printRecord.tsx`) and then printed the same way.
+
+**Print rules (`globals.css`):**
+
+- `@page { size: A4; margin: 0 }` sits **outside** `@media print`, which stops browsers adding the URL and date to the page.
+- Each template keeps its own padding. On multi-page resumes, `box-decoration-break: clone` repeats that padding on every page, so page 2 has the same margins as page 1.
+- Sections and list items avoid being cut between pages.
+
+**Why not a PDF library?** Libraries that turn the page into an image produce PDFs with no real text — ATS software cannot read them, and links stop working. The print engine produces real, selectable text and clickable links.
+
+---
+
+## 13. AI: one server route, many actions
+
+All AI requests go through `callAi()` in `src/utils/aiClient.ts`, which posts to `/api/ai`:
+
+```ts
+callAi('rewrite-text', { text, action: 'concise', context })
+```
+
+| Action | Used by |
 |---|---|
-| `gemini` (default) | `gemini-3.8-flash`, falling back to `gemini-3.1-flash-lite` |
-| `openrouter` | `OPENROUTER_MODEL` (default `google/gemini-2.5-flash`) plus optional `OPENROUTER_FALLBACK_MODELS` |
+| `parse-resume-pdf` | Import PDF, and resume uploads in the Analyzer, Job Matcher, and Interview Prep |
+| `read-job-pdf` | Job description uploaded as a PDF (copied word for word, never summarised) |
+| `rewrite-text` | AI writing assistant (7 modes) |
+| `generate-summary` | Summary writer |
+| `enhance-experience` | "Write bullets from notes" |
+| `optimize-resume` | AI polish (whole resume) |
+| `analyze-resume` | AI review in the Analyzer |
+| `match-job` / `tailor-resume` | Job Matcher |
+| `describe-project` | GitHub Projects |
+| `interview-questions` / `interview-feedback` | Interview Prep |
+| `generate-cover-letter` | Kept in the route; not used by the app yet |
 
-### When the AI is busy or down
+### Providers
 
-- **Busy (HTTP 500 / 503):** wait and try again — 500 ms, then 1 s — up to 2 retries.
-- **Model missing or out of quota (HTTP 404 / 429):** skip straight to the fallback model.
-- **Still failing:** the user sees *"The AI service is temporarily busy. Please try again shortly."*
-- The route can run for up to 60 seconds (`maxDuration = 60`).
+- **Gemini** (default): `gemini-3.8-flash`, falling back to `gemini-3.1-flash-lite`. Retries on errors 500/503; switches model on 404/429.
+- **OpenRouter**: set `AI_PROVIDER=openrouter`, with a main model and backup models.
 
-### Getting clean JSON back
+### One model per tool (OpenRouter only)
 
-1. For Gemini, every action that needs JSON asks for it directly (`responseMimeType: 'application/json'`).
-2. The server still cleans the reply: it removes ``` fences and cuts out the JSON part (`extractCleanJson`).
-3. The browser then passes the result through `normalizeResumeData()`, which:
-   - fills missing fields,
-   - drops empty items,
-   - trims text,
-   - makes sure no two items in a list share the same `id`.
+To spread the load, three tools can use their own OpenRouter model (`src/lib/server/aiModels.ts`):
 
-So even if the AI returns something a little off, the app stays stable.
-
----
-
-## 9. Keeping the AI honest
-
-This is the core idea of the product: **improve the wording, never change the facts.** We use five layers of protection:
-
-**Layer 1 — Clear rules in every prompt.** Each AI instruction lists what is forbidden: inventing skills, tools, employers, dates, degrees, licenses, numbers, or results.
-
-**Layer 2 — Data is not instructions.** Resume text and job descriptions are clearly marked as *data* inside the prompt. If someone hides a command inside a job post (for example, "ignore all rules"), the AI is told not to follow it.
-
-**Layer 3 — The server only accepts allowed changes.** For *Optimize with AI*, the server sends only the narrative text to the AI. When the answer comes back, the server copies **only** these fields back:
-
-- summary,
-- experience notes and bullets (same number of bullets),
-- project descriptions,
-- achievement descriptions.
-
-Names, dates, skills, education, and certifications can never be changed by this feature.
-
-**Layer 4 — The user reviews everything.** The review window shows **every change side by side** (Original vs Suggested). Nothing is saved until the user presses *Apply*.
-
-**Layer 5 — Safe apply.** When applied, the changes are matched to the **current** resume by `id`. If the user added a new row while the AI was working, it is kept.
-
----
-
-## 10. Importing a PDF resume
-
-**Files:** `src/utils/resumeImport.ts`, `src/components/wizard/UploadResumeModal.tsx`, `src/components/home/StudioLanding.tsx`
-
-**How it works:**
-
-1. **Check the file in the browser:** it must end in `.pdf` (or have a PDF type), be between 1 byte and 8 MB, and start with `%PDF-` (the signature of every real PDF). This catches renamed Word files early.
-2. **Send the whole PDF** to the server as Base64 text.
-3. **The AI reads the PDF directly** (Gemini `inlineData`, or the OpenRouter file parser). It sees the real layout, tables, and columns.
-4. **Strict extraction rules:** copy only what is visible; do not guess; keep each education record separate (Class 10, Class 12, degree, and so on); leave missing sections empty.
-5. **Normalize** the result (see section 8) and load it into the editor.
-
-**Why send the real PDF instead of reading the text in the browser?** Text reading in the browser often mixes up columns, loses headings, and breaks lines in strange places. Letting the AI see the real document gives much better results.
-
-**Overwrite safety:** importing replaces the current draft, so the app always tells the user first (a warning in the import window, and a confirm box on the home page).
-
----
-
-## 11. Job matching and the 3-check gate
-
-**Files:** `src/app/api/ai/route.ts` (`analyzeResumeForJob`), `src/components/home/StudioLanding.tsx`
-
-### Step 1 — Analysis
-
-The AI compares the resume with the job description and returns:
-
-- up to **14 requirements**, each marked *required* or *preferred*, with the evidence it found,
-- matched and missing skills,
-- warnings: domain mismatch, missing license, seniority gap,
-- practical tips and a summary suggestion.
-
-The **match percentage** uses these weights:
-
-| Part | Weight |
+| Setting | Used for |
 |---|---|
-| Skill match | 40% |
-| Role-relevant evidence | 25% |
-| Seniority (years / level) | 20% |
-| Domain alignment | 10% |
-| Education and licenses | 5% |
+| `OPENROUTER_MODEL_ANALYZER` | The Resume Analyzer's AI review (`analyze-resume`) |
+| `OPENROUTER_MODEL_JOB_MATCH` | The Job Matcher (`match-job`, `tailor-resume`) |
+| `OPENROUTER_MODEL_INTERVIEW` | Interview Prep (`interview-questions`, `interview-feedback`) |
 
-> The percentage is only for information. **It never decides** whether tailoring is allowed.
+Everything else (writing help, PDF import, GitHub) uses `OPENROUTER_MODEL`. A tool's model is never the only option:
 
-### Step 2 — The 3-check gate
+1. Each request lists the tool's model first and the main model as a backup. OpenRouter switches by itself when the first model is busy, rate limited, or not allowed.
+2. If the tool's model answers but the answer is not usable JSON (or it takes longer than 25 seconds), the app asks the main model once more, within the 60-second limit.
+3. Some models refuse to turn reasoning off. The app then uses short, hidden reasoning for that model and remembers it.
 
-The server (not the AI alone) decides if **"Sync resume with JD"** is allowed. All of these must be true:
+The server log shows which model answered each request, for example `[ai] match-job → liquid/lfm-2.5-2.6b:free`. No resume text is logged.
 
-1. ✅ **Field aligned** — education, work, or projects are in the same or a related field.
-2. ✅ **Relevant skills present** — the essential skills are shown in the resume.
-3. ✅ **Experience level aligned** — for a fresher role, projects and coursework can count.
-4. ✅ No *required* requirement is missing, and no license, seniority, or domain blocker.
-5. ✅ At least 3 requirements were checked and at least 1 was met (so the decision is reliable).
+**Free models:** they are often busy, and some are only open to approved apps. Very small models can struggle with the long, strict JSON the Job Matcher needs. Test a model before relying on it.
 
-### Step 3 — A signed permission slip (sync token)
+Structured actions ask the AI for **JSON only**. The route cleans the reply (`extractCleanJson`), and the browser cleans it again (`normalizeResumeData`) before anything touches a resume.
 
-If the gate passes, the server creates a **sync token**:
+PDF import sends the PDF itself (as Base64) to the AI, which reads it natively. This works far better than copying plain text out of the PDF in the browser.
 
-- It contains a fingerprint (SHA-256 hash) of the exact resume and job description, plus an expiry time of **15 minutes**.
-- It is signed with **HMAC-SHA256** using a server secret (`AI_SYNC_TOKEN_SECRET`, or the AI key if that is not set).
+### Errors the user sees
 
-The `tailor-resume` action **refuses** to run without a valid token. So nobody can skip the gate by calling the API directly, and the token cannot be reused for a different resume or job.
-
-### Step 4 — Tailoring
-
-The tailored resume keeps the same IDs, dates, and facts. It is saved to the editor, and the user gets an **"Open in editor"** link to review it.
+`callAi` turns every failure into a clear sentence: offline, too many requests (with the wait time), file too large, or a provider problem. AI failures never block editing.
 
 ---
 
-## 12. The ATS score
+## 14. Keeping the AI honest
 
-**File:** `src/utils/atsScore.ts`
+This is the most important rule of the product: **AI should improve your story, never invent your achievements.**
 
-A simple, transparent score out of 100. Only **filled** items count.
+### Rule 1 — The instructions forbid inventing
 
-| Check | Points |
+Every prompt says the AI may only rephrase what is already there. It must not add skills, numbers, employers, dates, degrees, or results. The "Add Relevant Keywords" mode may only use skills already in your skills list or text.
+
+### Rule 2 — The AI asks instead of guessing
+
+When a stronger line needs a fact you did not give (for example, a result), the AI puts a question in its **notes** ("How many users did this serve?") instead of making a number up.
+
+### Rule 3 — You approve every change
+
+No AI output is applied automatically. Every suggestion opens in **SuggestionReview**:
+
+```
+┌───────────── Original ─────────────┬──────────── Suggestion ────────────┐
+│ Responsible for building the       │ Built the login page and REST API  │
+│ login page and API.                │ for user sign-in.  (editable)      │
+└────────────────────────────────────┴────────────────────────────────────┘
+  Notes from the AI: "Add how many users signed in, if you know it."
+                                        [ Reject ]  [ Accept ]
+```
+
+- The suggestion is **editable** before you accept it.
+- **AI polish** (whole resume) lists every change one by one, each with its own Accept / Reject, and saves a version first.
+- Accepting is one undo step, so **Ctrl+Z** brings the original back.
+
+---
+
+## 15. The Resume Analyzer
+
+`src/lib/resume/analyzer.ts` gives a **readiness score out of 100**. It runs in the browser, instantly, with no AI.
+
+**Two ways to choose the resume:**
+
+- **A saved resume** — every issue has a **Fix** button that opens the right section in the Builder.
+- **An uploaded PDF** — the AI reads the PDF into resume data (the same reader as *Import PDF*), and the analyzer scores it. You pick the career stage to score it as (a first guess is made from the PDF). The upload is **not saved**, so there are no Fix buttons; **Save as a resume** creates a new resume from it, and then the Fix buttons appear. The AI review, if you ran one, carries over.
+
+| Category | Points |
 |---|---|
-| Full name | 5 |
-| Email | 5 |
-| Phone | 5 |
-| Location | 5 |
-| Summary longer than 30 characters | 5 |
-| Skills: 5 or more = 20 · 1 to 4 = 10 | 20 |
-| Work experience added | 15 |
-| Work experience has real details | 10 |
-| At least one project | 15 |
-| At least one education entry | 10 |
-| At least one link | 5 |
-| **Total** | **100** |
+| Contact details | 15 |
+| Summary | 10 |
+| Skills | 15 |
+| Experience & projects | 35 |
+| Education | 15 |
+| Formatting | 10 |
 
-Every missed point becomes a tip in the score popup. Reaching **100** shows a small confetti celebration.
-
-**Why a simple score?** Users can understand it and act on it straight away. It is a guide to completeness, not a copy of any company's private system — and the website says so.
-
----
-
-## 13. Safety, privacy, and limits
-
-| Area | What we do |
+| Score | Label |
 |---|---|
-| API keys | Only on the server, never sent to the browser |
-| Resume storage | Only in the user's browser; no database, no account |
-| What goes to the AI | Only the data a feature needs, only when the user presses that button |
-| Input limits | PDF ≤ 8 MB · job description 80–30,000 characters · job file (.txt / .md) ≤ 1 MB · resume JSON ≤ 60,000 characters · experience notes ≤ 5,000 characters |
-| Bad requests | Invalid JSON or missing fields get a clear `400` error, not a crash |
-| Links on the resume | Opened with `rel="noopener noreferrer"`; a missing `https://` is added automatically |
-| Overwrites | Loading a sample, importing a PDF, starting fresh, or syncing a different resume always asks first |
+| 85+ | Ready to send |
+| 70–84 | Strong |
+| 50–69 | Getting there |
+| Below 50 | Needs work |
+
+Each problem is an **issue** with: a severity (critical, warning, suggestion), a title, **why it matters**, **how to fix it**, and a **Fix** button that opens the right section in the Builder.
+
+**Career stage matters.** Freshers and students are not marked down for having no job history — their projects and education count instead. Experienced candidates are expected to show work history.
+
+**Optional AI review:** a button sends the resume to `analyze-resume` for grammar, clarity, and role-relevance notes. The score itself never depends on AI, so it is stable and explainable.
+
+**Why "readiness" and not "ATS score"?** No outside tool can know a real company's ATS. We say clearly that the score is an **estimate** of how complete and clear the resume is.
 
 ---
 
-## 14. Quality checks
+## 16. The Job Matcher and tailored copies
 
-| Check | Command |
+1. Choose one of your resumes (or upload a PDF) and add a job description (80 to 30,000 characters): paste it, or upload a `.txt` file (read in the browser) or a PDF (copied out by `read-job-pdf`).
+2. `match-job` returns: a match estimate, matched and missing **required** and **preferred** skills, **evidence** for each requirement, **keyword gaps**, **project alignment**, and three fit checks.
+3. If all three checks pass, you can **Create tailored version**.
+
+### The three fit checks
+
+| Check | Passes when |
 |---|---|
-| Type safety (strict TypeScript) | `npx tsc --noEmit` |
-| Code style and React rules | `npm run lint` |
-| Production build | `npm run build` |
+| Field aligned | Your education, work, or projects are in the same or a related field |
+| Relevant skills present | Your resume shows the job's **essential** skills (a missing *preferred* skill does not fail this) |
+| Experience level aligned | Your experience fits the job's level (projects count for fresher roles) |
 
-The main user journeys were also checked in a real headless browser: no hydration errors, saved drafts restored, old drafts migrated, page counter correct after template switches, PDF frame built correctly, and the mobile layout has no sideways scrolling.
+**Why the checks?** Tailoring a resume to a job you do not fit would push the AI toward inventing things. The checks stop that.
+
+### The permission token
+
+When the checks pass, the server returns a signed token (HMAC, valid for 15 minutes) tied to that exact resume and job description. `tailor-resume` refuses to run without a valid token. This stops anyone from skipping the checks by calling the route directly.
+
+### The original is never changed
+
+The tailored result is saved as a **new resume** called, for example, "Java Developer Resume — Backend Engineer", with `sourceResumeId` pointing to the original and `tailoredFor` set to the job title. A message offers to open it.
 
 ---
 
-## 15. Options we did not choose
+## 17. GitHub Projects
 
-| Option | Why we did not use it |
+1. Enter a GitHub username. `/api/github?username=` returns the user's public repositories (most recently updated first). Forks are hidden unless you ask for them.
+2. Pick up to 6 repositories. For each, `/api/github?owner=&repo=` returns its languages and README (the first 8,000 characters).
+3. `describe-project` writes a title, a short description, and a tech stack **only from the README, languages, and topics**.
+4. Each draft is shown in an editable card. Change anything, untick what you do not want, choose a resume, and add. A version is saved first, and each project keeps its **Code** link (and **Live** link if the repository has a homepage).
+
+The GitHub route validates names, handles "user not found", and explains GitHub's own rate limit with a wait time. An optional `GITHUB_TOKEN` raises GitHub's limits.
+
+---
+
+## 18. Interview Prep
+
+1. **Your resume:** a saved resume, or an uploaded PDF (used for this session only; not saved).
+2. **The job (optional):** paste a job description or upload it as a PDF or `.txt` file, and optionally a target role.
+3. **Question types:** Technical, **Coding (with sample code)**, Project-based, Behavioral, Role-specific; and how many (4–10).
+4. `interview-questions` prepares the questions.
+
+**With a job description**, most questions test a specific **job requirement** (for example "REST APIs with Spring Boot"). Each technical, coding, project, and role question shows whether your resume covers it:
+
+| Label | Meaning |
 |---|---|
-| A database and user accounts | More cost and more privacy risk. Most users only need one draft on one device. |
-| Calling the AI straight from the browser | It would expose the API key to everyone. |
-| Screenshot-based PDF (`html2canvas` + `jsPDF`) | Text becomes an image that ATS cannot read; files are big and blurry. |
-| Reading PDF text in the browser | Loses columns, headings, and structure. The AI reading the real PDF is far more accurate. |
-| Letting the AI rewrite the full resume freely | Too easy for it to add false claims. We only accept wording changes to existing text. |
-| Using the match percentage to unlock tailoring | A number can hide a real problem (like a missing license). Clear yes/no checks are safer. |
-| A separate component for each template's sections | 11 copies of the same code; fixes would be missed. One shared engine is easier to keep correct. |
-| Screenshots of templates on the home page | Images go out of date the moment a template changes. Rendering the real templates keeps the gallery always correct. |
+| *On your resume* | Your resume clearly shows this requirement |
+| *Partly on your resume* | It shows something related |
+| *Not on your resume* | A gap. The question is still asked (a real interviewer would), with a tip on answering honestly. |
+
+Behavioral questions test soft skills and have no label. Without a job description, questions come from your resume and target role, as before.
+
+**Coding questions and sample code:**
+
+- Coding questions are added **only when the role involves writing code** (software, data, testing, DevOps…). For other roles the page says so and uses the other question types instead. This is how "code only when it makes sense" is decided.
+- At most 3 coding questions, in the job's main programming language.
+- Each one has a **sample solution** (up to 50 lines, commented) and a short explanation with time and space complexity. A technical question may also get a short snippet when it really helps.
+- The sample answer and code are **hidden** behind *Show a sample answer and code*, so you try first. The code has a **Copy** button and a note to run and test it, because it is written by AI.
+
+**Feedback:** type an answer (coding questions get a code-style box). `interview-feedback` rates it from 1 to 5 on accuracy, clarity, completeness, and communication. For coding answers, accuracy means correct code including edge cases, and completeness includes stating the complexity. It also lists strengths and improvements and gives an outline of a better answer. The feedback uses the same resume and job description the questions came from, and must not assume experience you do not have.
 
 ---
 
-## 16. The home page
+## 19. Safety, privacy, and limits
 
-**Folder:** `src/components/home/`
+| Protection | How |
+|---|---|
+| API keys hidden | Only read on the server |
+| **Rate limits** | Per visitor: 10 AI requests a minute and 150 a day by default (`AI_RATE_LIMIT_PER_MINUTE`, `AI_RATE_LIMIT_PER_DAY`). GitHub route: 20 a minute, 300 a day. Over the limit → status 429 with a friendly message and wait time. |
+| Size limits | Request body 13 MB (status 413), PDF 8 MB, job description 30,000 characters, backup file 5 MB |
+| Input checks | Unknown actions → 400; invalid JSON → 400; each action checks its own fields |
+| No resume logging | The server never logs resume text. Errors log only short, general messages. |
+| Safe links | Only `http`, `https`, and `mailto` links become clickable on resumes (`safeHref`) |
+| Feature policy | `src/lib/entitlements.ts` decides which features are on. Everything is free at launch; the file is ready for future plans without changing every page. |
+| Dependencies | `npm audit` reports 0 vulnerabilities; unused packages were removed |
 
-The home page has one job: show people, in a few seconds, that this tool is beautiful **and** honest — then get them started.
+**Note:** rate limits are counted in the server's memory, so each server instance counts separately. A strict global limit would need a shared store (for example, Redis).
 
-**How it is built:**
+**Privacy page:** `/privacy` explains what is stored, what each AI feature sends, how to export everything, and how to **delete all data** on this device (after a clear confirmation).
 
-- **One file per section.** `StudioLanding.tsx` only lists the sections in order. The hero, features, gallery, job match, and FAQ each live in their own file, so they are easy to find and change.
-- **Real templates, not pictures.** The hero and the gallery render the same template components the editor uses, scaled down with `ScaledResume`. Templates come from one shared list, `templateCatalog.tsx`, so a new template appears in the editor **and** the gallery automatically.
-- **Fixed section order for previews.** Templates normally read the user's saved section order. The home page passes the default order instead (`sectionOrder` prop), so the server HTML and the browser always match — no hydration errors.
-- **A made-up demo person.** Previews use `landingDemoResume.ts` with `example.com` contact details, so no real person's data is shown publicly.
-- **"Use this template" changes only the look.** It saves the chosen template and color, then opens the editor. The user's resume content is never touched, so no confirm box is needed.
-- **The same safety rules as before.** Start from scratch, Import a PDF, and Sync with JD still ask before replacing a saved draft.
-- **Motion with manners.** Animations run once on scroll or loop slowly in the background, and switch off for people who prefer reduced motion (`MotionConfig reducedMotion="user"`).
+---
 
-➡️ Next: **[3. Design System — fonts, colors, and templates](./03-DESIGN-SYSTEM.md)**
+## 20. Quality checks and tests
+
+Before any change is finished, all of these must pass:
+
+```bash
+npx tsc --noEmit     # types
+npm run lint         # code style
+npm test             # 33 unit tests (Vitest + fake IndexedDB)
+npm run build        # production build
+npm run test:e2e     # 18 browser tests (Playwright)
+```
+
+**Unit tests** cover the storage service, autosave, undo/redo, tab conflicts, version limits, backups, recovery, the analyzer, data cleanup, section order, link safety, and rate limits.
+
+**End-to-end tests** run the real app in Microsoft Edge (desktop and phone sizes) and check every data-safety scenario in the PRD: refresh, Back, the new-resume dialog (continue, create, cancel), duplicate, delete, cleared storage, and old-draft migration. They also check AI approval (with a mocked AI), templates and PDF, keyboard use, dialogs, that phone pages never scroll sideways, and the upload flows: analyzing and saving an uploaded PDF, interview questions from an uploaded resume and job description (with sample code), and the job matcher with an uploaded resume. Any browser console error fails the test.
+
+---
+
+## 21. Options we did not choose
+
+| Option | Why not |
+|---|---|
+| Accounts and a server database | More cost, more risk to personal data, and a sign-up step. Local storage plus JSON backups is enough for now. |
+| Keep localStorage for resumes | Too small and unsafe for many resumes and versions |
+| A PDF image library | No real text for ATS, no clickable links |
+| Apply AI changes automatically | Breaks the "never invent" promise; users must stay in control |
+| An AI-made score | Changes every time and cannot explain itself. The rule-based analyzer is stable and explainable. |
+| Heavy animation and glass effects | Slower on phones and distracting. The PRD asks for a calm, professional look (see [Design System](./03-DESIGN-SYSTEM.md)). |
+
+➡️ Next: **[3. Design System](./03-DESIGN-SYSTEM.md)**

@@ -1,179 +1,131 @@
 # 1. The Problem, the Website, and Who It Is For
 
 > **Read time:** about 6 minutes
-> **Next:** [2. Approaches](./02-APPROACHES.md)
+> **Next:** [2. Approaches](./02-APPROACHES.md) · **Full plan:** [PRD](./PRD.md)
 
 ---
 
 ## In one line
 
-**AI Resume Studio** is a free website that helps people build a clean, honest resume, check how well it fits a real job, and download it as a ready-to-send PDF.
+**AI Resume Studio** is a free website that helps people build honest, professional resumes, improve them with AI, check them against real jobs, and prepare for interviews — without signing up.
 
 🌐 Live website: **[ai-resume-builder-silent.vercel.app](https://ai-resume-builder-silent.vercel.app)**
+
+> **Our rule:** AI should improve your story, never invent your achievements.
 
 ---
 
 ## 1. What is the problem?
 
-Making a good resume is harder than it looks. Most people face the same problems again and again.
-
 ### Problem 1 — Resumes are read by software first
 
-Most companies use an **ATS** (Applicant Tracking System). This is software that reads your resume before a human sees it.
-
-- If the layout is too fancy (tables, images, text inside pictures), the ATS cannot read it.
-- If important skills are missing, the ATS may rank the resume low.
-- Many people never learn *why* they got no reply.
+Most companies use an **ATS** (Applicant Tracking System) that reads a resume before a person does. Fancy layouts, missing skills, or unclear sections can push a good candidate down the list — and nobody tells them why.
 
 ### Problem 2 — Writing about yourself is hard
 
-- Freshers (new graduates) think they have "nothing to write" because they have no job yet.
-- Experienced people write long, weak sentences like *"Responsible for handling tasks"*.
-- Grammar and spelling mistakes make a good candidate look careless.
+- Freshers think they have "nothing to write" because they have no job yet.
+- Many people write weak lines like *"Responsible for tasks"*.
+- Small grammar mistakes make a strong candidate look careless.
 
-### Problem 3 — Most AI resume tools make things up
+### Problem 3 — Many AI tools make things up
 
-Many AI tools "improve" a resume by **adding things that are not true**:
+Some AI tools "improve" a resume by adding fake numbers, skills, or results. A fake claim can be caught in an interview and cost the candidate the job.
 
-- fake numbers ("increased sales by 40%"),
-- skills the person never used,
-- job titles or results that never happened.
+### Problem 4 — People lose their work
 
-This is dangerous. A fake claim can be caught in an interview, and the candidate loses trust.
+Many free builders keep a single draft. One refresh, one wrong click on Back, or one "new resume" button can wipe hours of work.
 
-### Problem 4 — People apply to jobs that do not fit
+### Problem 5 — One resume does not fit every job
 
-- A person may send the same resume to 50 different jobs.
-- Some jobs need a license (doctor, lawyer) or many years of experience.
-- Without a clear check, people waste time and get rejected without knowing why.
+People need different versions (a Java resume, a Full Stack resume, an internship resume) and a quick way to see how each one fits a specific job.
 
-### Problem 5 — Good tools are often paid or hard to use
+### Problem 6 — Good tools are paid or ask for an account
 
-- Many resume builders lock the PDF download behind a payment.
-- Some need an account and store your personal data on their servers.
-- Many do not work well on a phone.
+Many builders lock the PDF behind a payment, require a login, or store personal data on their servers.
 
 ---
 
 ## 2. What is the website?
 
-AI Resume Studio is a **resume workspace in the browser**. You can:
-
 | What you can do | How it helps |
 |---|---|
-| Start from a blank page | Simple step-by-step form, one section at a time |
-| Import your old resume (PDF) | AI copies your details into the right fields |
-| Load a sample profile | See a full example (10 careers) before you start |
-| Write a professional summary with AI | Uses only the facts you entered |
-| Turn rough notes into clean bullet points | Uses only what you wrote. No fake numbers. |
-| Polish grammar for the whole resume | You see every change side by side before you accept |
-| Pick from 11 templates and 7 colors | Live preview updates while you type |
-| Reorder or hide sections | Freshers can show Projects first, experienced people can show Work first |
-| Check your ATS score | A score out of 100 with tips to improve |
-| Compare your resume with a job description | Shows matched skills, missing skills, and real gaps |
-| Tailor the resume to the job | Only allowed when the resume truly fits the role |
-| Download a PDF | Clean A4 file, no watermark, no browser header or footer text |
+| **Build resumes** section by section | A simple editor with a live A4 preview, undo/redo, and autosave |
+| **Keep many resumes** in *My Resumes* | Each one is separate; editing one never changes another |
+| **Start your way** | Blank, import an old PDF, start from an example, or copy one of your resumes |
+| **Write with AI** | Seven writing actions; you see the original next to the suggestion and decide |
+| **Analyze your resume** | A saved resume or an uploaded PDF: an explainable readiness score with clear issues and "Fix" buttons |
+| **Match a job** | See evidence and real gaps; create a separate tailored version |
+| **Import GitHub projects** | Project entries written only from your real repositories |
+| **Practice interviews** | Questions from your resume and the job description's requirements, sample code for coding questions, and feedback |
+| **Download a PDF** | 11 templates, 7 colors, clean A4, free, no watermark |
 
-It is **free**, needs **no account**, and works on **desktop and mobile**.
+It is **free**, needs **no account**, and works on **phones, tablets, and computers**.
 
 ---
 
 ## 3. How does it solve each problem?
 
-### ✅ Solution to Problem 1 — ATS-friendly by design
+### ✅ Problem 1 — ATS-friendly by design
+- Every template uses real text, clear headings, and A4 sizing.
+- The **Resume Analyzer** gives a score out of 100 split into six parts (contact, summary, skills, experience & projects, education, formatting) and explains each missing point.
+- The score is called an **estimate** — it never promises ATS results or interviews.
 
-- All 11 templates use real text, simple structure, and clear section headings.
-- The **ATS Score meter** gives a score out of 100 and tells you what is missing (for example: "Add at least 5 key skills").
-- The preview shows **dashed red lines** where each A4 page ends, so you know your page count before you download.
+### ✅ Problem 2 — Guided writing with AI help
+- Clear sections with short tips and examples.
+- **Fresher mode:** students and freshers see Education and Projects first and are never marked down for having no job.
+- The **AI writing assistant** offers: Improve Writing, Make Concise, Make Professional, Fix Grammar, Improve Clarity, Rewrite as Achievement, and Add Relevant Keywords.
 
-### ✅ Solution to Problem 2 — Guided writing with AI help
+### ✅ Problem 3 — AI that never invents facts
+1. Every AI instruction forbids new skills, numbers, employers, dates, degrees, or results.
+2. Every suggestion is shown **next to your original**. You can **accept, edit, or reject** it. Nothing changes until you accept.
+3. When a stronger line needs information you did not give (like a result), the AI **asks you** instead of guessing.
+4. Imported PDFs keep missing sections empty instead of guessing them.
 
-- The form is split into **7 small steps**: Personal, Skills, Experience, Projects, Education, Certifications, Achievements.
-- The **AI Summary Studio** first asks one simple question: *"Are you a fresher or do you have work experience?"* Then it writes a 3-sentence summary that fits your career stage.
-- The **AI Enhance** button turns rough notes into 2–3 strong bullet points.
-- **Optimize with AI** fixes grammar and clarity across the whole resume.
+### ✅ Problem 4 — Your work is protected
+- **Autosave** with a visible status (*Saving…*, *All changes saved*, *Offline*, *Save failed*, *Recovering previous changes*).
+- **Refresh** reopens the same resume. **Back** never deletes anything.
+- If the tab closes in the middle of a save, the change is **recovered** next time.
+- **Creating a new resume always asks first:** *Continue existing resume*, *Create new resume*, or *Cancel*.
+- **Version history** to restore earlier versions, and **JSON backups** to keep a copy anywhere.
 
-### ✅ Solution to Problem 3 — "Evidence only" AI
+### ✅ Problem 5 — The right resume for each job
+- Keep as many resumes as you like.
+- The **Job Matcher** shows required vs preferred gaps, keyword gaps, and how each project fits.
+- **Create tailored version** makes a *new* resume for that job. Your original stays exactly as it was.
 
-This is the most important rule of the whole product:
-
-> **The AI may improve how something is said. It may never change what is true.**
-
-How this is enforced:
-
-1. Every AI instruction clearly says: *do not invent skills, numbers, employers, dates, or results.*
-2. When the AI polishes your resume, the website **only accepts wording changes** to text that already exists. Names, dates, skills, and education are never touched.
-3. You see a **before / after** view of every single change and can say "Keep original".
-4. When a PDF is imported, missing sections stay **empty**. The AI is told not to guess.
-
-### ✅ Solution to Problem 4 — Honest job matching
-
-The **Job Match** tool reads your resume and a full job description, then shows:
-
-- a match estimate (clearly marked as *"not a hiring guarantee"*),
-- each job requirement with **evidence found** or **gap**,
-- **required** gaps vs **preferred** gaps,
-- warnings for **domain mismatch**, **missing license**, or **not enough experience**.
-
-The **"Sync resume with JD"** button (tailor your resume to the job) only unlocks when three checks pass:
-
-1. Your field matches the job's field.
-2. Your resume shows the key skills for the role.
-3. Your experience level fits the role.
-
-A low percentage alone never blocks you. A real mismatch always does. This protects people from sending a misleading resume.
-
-### ✅ Solution to Problem 5 — Free, private, and mobile-friendly
-
-- Your draft is saved **only in your own browser** (local storage). There is no account and no database.
-- Your details go to the AI service **only when you press an AI button**, and only the details that feature needs.
-- The PDF download is free and has no watermark.
-- On a phone, the editor and the preview are two tabs you can switch between.
+### ✅ Problem 6 — Free and private
+- No login, no database, no paywall, no watermark.
+- Resumes are stored in your own browser.
+- Text is sent to the AI provider **only** when you use an AI feature, and only what that feature needs. The *Privacy & Data* page lists exactly what each feature sends.
 
 ---
 
 ## 4. Who is the user?
 
-### 👩‍🎓 1. Freshers and students (main user)
+### 👩‍🎓 Persona A — Fresher
+Recently graduated, no job history, has college and personal projects. Wants internships and entry-level jobs.
+**Most useful:** Fresher mode, GitHub Projects, AI help for project descriptions, interview practice.
 
-- Final-year students and recent graduates.
-- Have projects, internships, and education, but little or no job experience.
-- **What they need:** a resume that makes projects and education count, and a summary that does not pretend they have a job.
-- **What helps them most:** fresher mode in the AI Summary, "Projects first" section order, Class 10 / Class 12 quick-add buttons in Education.
+### 📚 Persona B — Student
+Still studying, has marks, certifications, and achievements. Wants an internship-ready resume.
+**Most useful:** Education first, Class 10/12 quick-add, Certifications and Achievements sections, the analyzer.
 
-### 👨‍💼 2. Working professionals
+### 👨‍💼 Persona C — Experienced Professional
+Has work history and wants a stronger resume, plus versions for different roles.
+**Most useful:** AI bullet writing, the Job Matcher with tailored copies, My Resumes.
 
-- 1 to 15+ years of experience, looking for a new job or a promotion.
-- **What they need:** strong bullet points, a sharp summary, and a resume tailored to each job.
-- **What helps them most:** AI Enhance for bullets, Job Match with gap analysis, multi-page support.
-
-### 🔄 3. Career switchers
-
-- People moving to a new field (for example, from sales to data analysis).
-- **What they need:** an honest view of what is missing before they apply.
-- **What helps them most:** Job Match shows the real gaps and warns about domain mismatch instead of hiding it.
-
-### ⚕️ 4. People in regulated jobs
-
-- Doctors, lawyers, teachers, finance analysts, and similar roles.
-- **What they need:** formal templates and correct handling of licenses.
-- **What helps them most:** Legal / Academic and Clinical Healthcare templates; the matcher flags a missing required license.
-
-### 📱 5. Mobile-first users
-
-- People who only have a phone, or want to fix their resume on the go.
-- **What helps them most:** the full editor works on a 390 px phone screen, with an Edit / Preview switcher.
+### 💻 Persona D — Developer
+Has GitHub repositories and wants to show real technical work.
+**Most useful:** GitHub Projects import, project links on the resume, technical interview questions.
 
 ---
 
 ## 5. What this website is NOT
 
-To keep expectations clear:
-
-- ❌ It does **not** promise you will get a job or an interview.
+- ❌ It does **not** promise a job or an interview.
 - ❌ It does **not** write fake experience to "beat" the ATS.
-- ❌ It does **not** store your resume on a server or need a login.
-- ❌ The ATS score is a **helpful guide**, not the score of any real company's system.
+- ❌ It does **not** need an account or store resumes on a server.
+- ❌ Scores and match percentages are **estimates**, not hiring predictions.
 
 ---
 
@@ -181,10 +133,11 @@ To keep expectations clear:
 
 | Problem | Our answer |
 |---|---|
-| ATS software rejects resumes | ATS-friendly templates + ATS score with tips |
-| Writing is hard | 7-step guided form + AI summary + AI bullets + grammar polish |
-| AI tools invent things | Evidence-only AI rules + before/after review of every change |
-| Applying to the wrong jobs | Honest job matching with gaps, warnings, and a 3-check gate |
-| Tools are paid or not private | Free, no account, saved only in your browser, works on mobile |
+| ATS software filters resumes | ATS-friendly templates + explainable analyzer |
+| Writing is hard | Guided sections, fresher mode, AI writing assistant |
+| AI tools invent things | Evidence-only AI + approve every suggestion |
+| People lose their work | Autosave, recovery, version history, backups, "ask before new resume" |
+| One resume for every job | Many resumes + Job Matcher + separate tailored copies |
+| Paid or not private | Free, no sign-up, stored in your browser |
 
 ➡️ Next: **[2. Approaches — how it is built and why](./02-APPROACHES.md)**
