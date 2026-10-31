@@ -11,7 +11,8 @@ export type Feature =
   | 'aiAnalysis'
   | 'jobMatch'
   | 'githubImport'
-  | 'interviewPrep';
+  | 'interviewPrep'
+  | 'assessment';
 
 export interface PlanPolicy {
   id: 'free';
@@ -41,6 +42,7 @@ export function getPlanPolicy(): PlanPolicy {
       jobMatch: true,
       githubImport: true,
       interviewPrep: true,
+      assessment: true,
     },
     aiRequestsPerMinute: readLimit(process.env.AI_RATE_LIMIT_PER_MINUTE, 10),
     aiRequestsPerDay: readLimit(process.env.AI_RATE_LIMIT_PER_DAY, 150),

@@ -56,7 +56,8 @@ Many builders lock the PDF behind a payment, require a login, or store personal 
 | **Analyze your resume** | A saved resume or an uploaded PDF: an explainable readiness score with clear issues and "Fix" buttons |
 | **Match a job** | See evidence and real gaps; create a separate tailored version |
 | **Import GitHub projects** | Project entries written only from your real repositories |
-| **Practice interviews** | Questions from your resume and the job description's requirements, sample code for coding questions, and feedback |
+| **Take an AI interview** | A full-screen, spoken interview with an animated AI interviewer, built from your resume and the job, with feedback after every answer |
+| **Test yourself** | Protected tests: coding and SQL rounds with compilers and hidden tests, technical and aptitude MCQs, and government exam practice |
 | **Download a PDF** | 11 templates, 7 colors, clean A4, free, no watermark |
 
 It is **free**, needs **no account**, and works on **phones, tablets, and computers**.

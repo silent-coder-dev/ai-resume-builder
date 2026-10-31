@@ -45,7 +45,15 @@ Operational guidelines and constraints for autonomous agents modifying or expand
    - No sideways scrolling at 320 px and up.
    - Home page previews use only `landingDemoResume` (example.com), never real personal data.
 
-6. **Verification Before Hand-off** — all must pass:
+6. **Interview and Assessment Rules**:
+   - Answer keys, hidden tests, and reference solutions never reach the browser before submission. Seal them with `src/lib/server/seal.ts`.
+   - Hidden tests return a verdict only, never output or errors, because programs can print their input.
+   - Never trust AI output for a test: validate MCQs, get coding outputs by running the reference, and run SQL references on both data sets.
+   - Candidates' code runs only through `src/lib/server/codeRunner.ts`, and SQL only through `sqlSandbox.ts`. Never run submitted code in the web server's process.
+   - New tests are one entry in `src/lib/assessment/catalog.ts`. Interview questions are spoken, so no code in them.
+   - Don't claim the protected mode is cheat-proof. It's self-assessment, and the results page must say so.
+
+7. **Verification Before Hand-off** — all must pass:
    - `npx tsc --noEmit`
    - `npm run lint`
    - `npm test` (Vitest unit tests)

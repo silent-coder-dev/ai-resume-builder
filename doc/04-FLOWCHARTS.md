@@ -53,13 +53,22 @@ Every chart below is written in **Mermaid**. GitHub shows them as diagrams autom
 23. [Job Matcher and the tailored copy](#23-job-matcher-and-the-tailored-copy)
 24. [The permission token](#24-the-permission-token)
 25. [GitHub Projects](#25-github-projects)
-26. [Interview Prep](#26-interview-prep)
+26. [The AI Interview](#26-the-ai-interview)
 
 **The server**
 
 27. [Inside the AI route](#27-inside-the-ai-route)
 28. [Rate limits](#28-rate-limits)
 29. [AI model retry and fallback](#29-ai-model-retry-and-fallback)
+
+**The Assessment Center**
+
+30. [Taking a protected test](#30-taking-a-protected-test)
+31. [Warnings and protection](#31-warnings-and-protection)
+32. [Preparing a coding problem](#32-preparing-a-coding-problem)
+33. [Run and Submit in the coding round](#33-run-and-submit-in-the-coding-round)
+34. [The SQL round](#34-the-sql-round)
+35. [MCQ answers stay sealed](#35-mcq-answers-stay-sealed)
 
 ---
 
@@ -109,7 +118,8 @@ flowchart TD
         AN["Analyzer"]
         JM["Job Matcher"]
         GHP["GitHub Projects"]
-        IV["Interview Prep"]
+        IV["AI Interview"]
+        AC["Assessment Center"]
         ST["Settings"]
         PR["Privacy and Data"]
     end
@@ -643,34 +653,28 @@ sequenceDiagram
 
 ---
 
-## 26. Interview Prep
+## 26. The AI Interview
 
 ```mermaid
 flowchart TD
-    A(["1. Your resume"]) --> AS{"Saved or upload?"}
-    AS -->|"Saved"| RES["Resume data"]
-    AS -->|"Upload a PDF"| RP["callAi parse-resume-pdf"] --> RES
-    J(["2. The job, optional"]) --> JS{"Paste or upload?"}
-    JS -->|"Paste"| JD["Job description text"]
-    JS -->|".txt file"| JD
-    JS -->|"PDF"| JP["callAi read-job-pdf:<br/>copied word for word"] --> JD
-    RES --> Q["callAi interview-questions<br/>with types and count"]
-    JD --> Q
-    Q --> HAS{"Job description given?"}
-    HAS -->|Yes| QJ["Questions test job requirements.<br/>Label: On your resume, Partly, or Not on your resume"]
-    HAS -->|No| QR["Questions from your resume<br/>and target role"]
-    QJ --> CODE{"Role involves writing code<br/>and Coding is ticked?"}
-    QR --> CODE
-    CODE -->|Yes| CQ["Up to 3 coding questions,<br/>each with sample code and complexity"]
-    CODE -->|No| NC["No coding questions,<br/>the page says why"]
-    CQ --> L["Question cards"]
-    NC --> L
-    L --> SA["Show a sample answer and code:<br/>hidden until you ask, Copy button"]
-    L --> P["Type an answer or code"]
-    P --> F["callAi interview-feedback<br/>same resume and job"]
-    F --> R["Ratings 1 to 5: accuracy, clarity,<br/>completeness, communication"]
-    R --> S["Strengths, improvements,<br/>outline of a better answer"]
-    S --> P
+    A(["Resume: saved or uploaded PDF"]) --> S["Settings and device check"]
+    J(["Job description, optional:<br/>paste, .txt, or PDF"]) --> S
+    S --> FS["Start: open full screen"]
+    FS --> P["callAi interview-plan"]
+    P --> G["Aria greets the candidate"]
+    G --> Q["Aria speaks one question,<br/>with captions"]
+    Q --> M["Microphone turns on"]
+    M --> AN{"How does the candidate respond?"}
+    AN -->|"Speaks or types"| D["Done answering"]
+    AN -->|"Skip"| NEXT
+    D --> E["callAi interview-answer"]
+    E --> F["Feedback: ratings, what worked,<br/>what to improve, You could say it like this"]
+    F --> FU{"Follow-up worth asking?<br/>at most 2 in an interview"}
+    FU -->|Yes| Q
+    FU -->|No| NEXT{"More questions?"}
+    NEXT -->|Yes| Q
+    NEXT -->|No| C["Aria thanks the candidate"]
+    C --> R["Report: score, ratings, summary,<br/>every question with feedback"]
 ```
 
 ---
@@ -735,7 +739,7 @@ flowchart TD
     G -->|Other error| ERR
 ```
 
-With `AI_PROVIDER=openrouter`, the same idea applies: the main OpenRouter model first, then each backup model in `OPENROUTER_FALLBACK_MODELS`. The Analyzer, Job Matcher, and Interview Prep can each have their own model first:
+With `AI_PROVIDER=openrouter`, the same idea applies: the main OpenRouter model first, then each backup model in `OPENROUTER_FALLBACK_MODELS`. The Analyzer, Job Matcher, and AI Interview (shared with the Assessment Center) can each have their own model first:
 
 ```mermaid
 flowchart TD
@@ -748,6 +752,125 @@ flowchart TD
     OK -->|Yes| DONE(["Answer"])
     OK -->|No| MAIN
     MAIN --> DONE
+```
+
+---
+
+## 30. Taking a protected test
+
+```mermaid
+flowchart TD
+    A(["Assessment Center"]) --> B["Choose a test:<br/>coding, SQL, MCQ, or government exam"]
+    B --> C["Choose topics, difficulty, and size"]
+    C --> D["Read the rules and agree"]
+    D --> E["Start: open full screen"]
+    E --> F["Server writes and checks the questions"]
+    F --> G["The test appears and the timer starts"]
+    G --> H{"How does it end?"}
+    H -->|"Finish test"| I["Submit"]
+    H -->|"Time runs out"| I
+    H -->|"3 warnings"| I
+    I --> J["Server grades it"]
+    J --> K(["Results: score, review,<br/>and integrity report"])
+```
+
+---
+
+## 31. Warnings and protection
+
+```mermaid
+flowchart TD
+    A(["During the test"]) --> B{"What happened?"}
+    B -->|"Left full screen"| C["Warning, and the test is hidden<br/>until the candidate returns"]
+    B -->|"Switched tab or app"| D["Warning popup"]
+    B -->|"Reloaded the page"| E["Test can resume, timer kept running,<br/>counts as a warning"]
+    B -->|"Copy, outside paste, right-click, shortcut"| F["Blocked, no warning"]
+    C --> G{"3 warnings?"}
+    D --> G
+    E --> G
+    G -->|Yes| H(["Test submits itself"])
+    G -->|No| I(["Back to the test"])
+```
+
+---
+
+## 32. Preparing a coding problem
+
+```mermaid
+sequenceDiagram
+    participant B as Browser
+    participant S as /api/assessment
+    participant AI as AI model
+    participant R as Code runner
+
+    B->>S: coding-start with topics and difficulty
+    S->>AI: Write a problem, inputs, and a reference solution
+    AI-->>S: Problem draft
+    S->>R: Run the reference on every input
+    R-->>S: Outputs
+    Note over S: Expected output is what the reference printed.<br/>Inputs where it crashes are dropped.
+    alt Enough tests survive
+        S->>S: Seal the hidden tests with AES-256-GCM
+        S-->>B: Problem, public tests, and a sealed token
+    else Too few
+        S->>AI: Try once more if there is time
+    end
+```
+
+---
+
+## 33. Run and Submit in the coding round
+
+```mermaid
+flowchart TD
+    A(["Candidate's code"]) --> B{"Which button?"}
+    B -->|Run| C["Public tests only"]
+    C --> D["Shows input, expected,<br/>and the candidate's output"]
+    B -->|"Submit code"| E["Server opens the sealed token"]
+    E --> F["Public and hidden tests"]
+    F --> G["Public: full details"]
+    F --> H["Hidden: verdict only,<br/>no input or output"]
+    G --> I(["Tests passed, out of the total"])
+    H --> I
+```
+
+---
+
+## 34. The SQL round
+
+```mermaid
+flowchart TD
+    A(["Candidate's query"]) --> B{"One SELECT query?"}
+    B -->|No| C(["Clear message, nothing runs"])
+    B -->|Yes| D["New SQLite database in a worker thread"]
+    D --> E{"Finished within 4 seconds?"}
+    E -->|No| F(["Worker stopped: query took too long"])
+    E -->|Yes| G["Compare with the expected result on public data"]
+    G --> H{"Submit?"}
+    H -->|"Run only"| I(["Shows the result and whether it matches"])
+    H -->|"Submit query"| J["Run again on the hidden data"]
+    J --> K(["Hidden data: Passed or Failed"])
+```
+
+---
+
+## 35. MCQ answers stay sealed
+
+```mermaid
+sequenceDiagram
+    participant B as Browser
+    participant S as /api/assessment
+    participant AI as AI model
+
+    B->>S: mcq-start with test and topics
+    S->>AI: Write the questions
+    AI-->>S: Questions and answers
+    S->>S: Drop broken ones and shuffle options
+    S->>S: Seal the answer key
+    S-->>B: Questions and sealed token, no answers
+    B->>S: mcq-submit with choices and the token
+    S->>S: Open the token and grade
+    S-->>B: Score, correct answers, and explanations
 ```
 
 ➡️ Next: **[5. Directory Map](./05-DIRECTORY-MAP.md)**

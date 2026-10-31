@@ -17,7 +17,8 @@ const AI_DATA = [
   { feature: 'Polish wording / AI review', sent: 'Your resume content (not your file or browser data).' },
   { feature: 'Job matcher', sent: 'The selected or uploaded resume and the job description.' },
   { feature: 'GitHub import', sent: 'Public repository details from GitHub (name, description, languages, README).' },
-  { feature: 'Interview prep', sent: 'Your resume, the job description if you add one, target role, the question, and your answer.' },
+  { feature: 'AI interview', sent: 'Your resume, the job description if you add one, target role, the question, and your answer. In Chrome, speech is also turned into text by the browser’s speech service. Your camera preview is never recorded or sent.' },
+  { feature: 'Assessment Center', sent: 'Your chosen topics go to the AI service. SQL answers run on this site’s server. Code you run goes to the code-running service this site uses.' },
 ];
 
 function formatBytes(bytes: number | null) {

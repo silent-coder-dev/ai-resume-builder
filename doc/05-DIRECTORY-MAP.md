@@ -41,13 +41,15 @@ flowchart LR
     SRC --> UTILS["utils<br/>small helpers"]
 
     APP --> A1["page.tsx: home"]
-    APP --> A2["(studio): builder, resumes,<br/>analyzer, job-match, github,<br/>interview, settings, privacy"]
-    APP --> A3["api: ai, github"]
+    APP --> A2["(studio): builder, resumes,<br/>analyzer, job-match, github,<br/>interview, assessment, settings, privacy"]
+    APP --> A3["api: ai, assessment, github"]
 
     COMP --> C1["home"]
     COMP --> C2["shell"]
     COMP --> C3["workspace<br/>editors, ai"]
     COMP --> C4["tools"]
+    COMP --> C7["interview"]
+    COMP --> C8["assessment"]
     COMP --> C5["preview"]
     COMP --> C6["ui"]
 
@@ -55,6 +57,7 @@ flowchart LR
     LIB --> L2["resume"]
     LIB --> L3["server"]
     LIB --> L4["entitlements"]
+    LIB --> L5["assessment"]
 ```
 
 ---
@@ -77,10 +80,12 @@ flowchart LR
 | `(studio)/analyzer/page.tsx` | 13 | Resume Analyzer |
 | `(studio)/job-match/page.tsx` | 13 | Job Matcher |
 | `(studio)/github/page.tsx` | 13 | GitHub Projects |
-| `(studio)/interview/page.tsx` | 13 | Interview Prep |
+| `(studio)/interview/page.tsx` | 13 | AI Interview |
+| `(studio)/assessment/page.tsx` | 8 | Assessment Center |
 | `(studio)/settings/page.tsx` | 8 | Settings |
 | `(studio)/privacy/page.tsx` | 8 | Privacy & Data |
-| `api/ai/route.ts` | 1533 | **All AI actions**: checks, rate limit, prompts, provider calls, retry and fallback |
+| `api/ai/route.ts` | 1213 | **Resume and interview AI actions**: checks, rate limit, prompts |
+| `api/assessment/route.ts` | 293 | **Tests**: start, run, submit, and review for MCQ, coding, and SQL |
 | `api/github/route.ts` | 128 | Public repositories, languages, and README from GitHub |
 
 > `(studio)` in brackets is a Next.js **route group**: it shares a layout but does not appear in the address. `/builder` is the real address.
@@ -134,12 +139,37 @@ flowchart LR
 | `AnalyzerTool.tsx` | 324 | Readiness score, issues, Fix buttons, optional AI review; analyze or save an uploaded PDF |
 | `JobMatchTool.tsx` | 333 | Job match results and the tailored copy |
 | `GithubTool.tsx` | 299 | Repository list, AI drafts, add to a resume |
-| `InterviewTool.tsx` | 467 | Questions from the resume and job description, sample code, answer feedback |
+| `InterviewTool.tsx` | 313 | AI interview setup: resume, job, settings, device check |
 | `ResumeSourcePicker.tsx` | 137 | Shared "use a saved resume or upload a PDF" choice |
 | `JobDescriptionField.tsx` | 99 | Shared job description box: paste, or upload a PDF or .txt |
 | `SettingsPanel.tsx` | 156 | Default template, color, career stage, motion, AI limits |
 | `PrivacyPanel.tsx` | 206 | What is stored, what each AI feature sends, storage use, export, import, delete all |
 | `useToolResume.tsx` | 62 | Shared "choose a resume" hook and select box |
+
+### 📁 `src/components/interview/` — the AI interview
+
+| File | Lines | What it does |
+|---|---|---|
+| `InterviewRoom.tsx` | 623 | The full-screen room and the whole interview flow |
+| `AiInterviewer.tsx` | 146 | The animated interviewer (SVG), with lip movement |
+| `useSpeech.ts` | 233 | The interviewer's voice and the candidate's microphone |
+| `InterviewReport.tsx` | 175 | The final report |
+| `useImmersive.ts` | 35 | Hides the page behind full-screen layers; tracks full screen |
+| `types.ts` | 101 | Interview types, and how the score is worked out |
+
+### 📁 `src/components/assessment/` — the Assessment Center
+
+| File | Lines | What it does |
+|---|---|---|
+| `AssessmentCenter.tsx` | 605 | Test list, setup, starting, finishing, resuming |
+| `ExamShell.tsx` | 130 | The protected frame: timer, warnings, full-screen lock |
+| `useProctor.ts` | 160 | Notices leaving; blocks copy, paste, and shortcuts |
+| `McqExam.tsx` | 115 | MCQ test with question palette and review marks |
+| `CodingExam.tsx` | 251 | Coding compiler: problem, editor, public and hidden results |
+| `SqlExam.tsx` | 150 | SQL compiler: tables, editor, results |
+| `CodeEditor.tsx` | 102 | The code editor (CodeMirror) |
+| `ExamResults.tsx` | 206 | Score, answer review, integrity report |
+| `types.ts` | 149 | Test session and result types |
 
 ### 📁 `src/components/preview/` — templates and the A4 preview
 
@@ -175,6 +205,14 @@ flowchart LR
 | `resume/analyzer.ts` | 222 | The readiness score and issues |
 | `resume/validation.ts` | 36 | Email, phone, and link checks; safe links |
 | `resume/samples.ts` | 49 | The 10 example resumes, with safe contact details |
+| `assessment/catalog.ts` | 344 | **Every test, topic, and exam pattern.** Add a test here. |
+| `assessment/languages.ts` | 76 | Coding languages and starter code |
+| `assessment/session.ts` | 97 | Full screen, resume after reload, attempt history |
+| `server/aiProvider.ts` | 377 | Talks to Gemini or OpenRouter: retries, fallback, JSON cleanup |
+| `server/assessmentEngine.ts` | 334 | Writes prompts, checks AI output, grades tests |
+| `server/codeRunner.ts` | 170 | Connects to the compiler service; runs tests |
+| `server/sqlSandbox.ts` | 111 | Runs SQL safely in a worker thread |
+| `server/seal.ts` | 32 | Encrypts answer keys and hidden tests |
 | `server/rateLimit.ts` | 58 | Per-visitor request limits |
 | `server/aiModels.ts` | 35 | Which OpenRouter model each tool uses, and its backups |
 | `entitlements.ts` | 52 | Which features are on (all free at launch) |
@@ -217,7 +255,9 @@ flowchart LR
 | `e2e/helpers.ts` | 61 | Shared steps; fails a test on any console error |
 | `e2e/persistence.spec.ts` | 167 | Refresh, Back, new-resume dialog, duplicate, delete, migration |
 | `e2e/workspace.spec.ts` | 144 | AI approval, limits, sections, templates, PDF, keyboard |
-| `e2e/tools.spec.ts` | 221 | Uploads in the Analyzer, Interview Prep (job description, sample code), and Job Matcher |
+| `unit/assessment.test.ts` | 255 | Sealing, the SQL sandbox, grading, the catalog, interview score |
+| `e2e/tools.spec.ts` | 113 | Uploads in the Analyzer and Job Matcher |
+| `e2e/interview-assessment.spec.ts` | 487 | The full AI interview and protected tests |
 | `e2e/mobile.spec.ts` | 33 | Phone layout: no sideways scroll, tabs, menu |
 
 ### 📁 `public/` — static files
@@ -355,7 +395,11 @@ flowchart TD
 | Privacy page text | `components/tools/PrivacyPanel.tsx` |
 | The "saved or upload" resume choice | `components/tools/ResumeSourcePicker.tsx` |
 | The job description box | `components/tools/JobDescriptionField.tsx` |
-| Interview question rules or sample code | `interview-questions` in `app/api/ai/route.ts` |
+| Interview question rules | `interview-plan` in `app/api/ai/route.ts` |
+| The interviewer's look or animation | `components/interview/AiInterviewer.tsx`, `globals.css` |
+| Add a test, topic, or exam | `lib/assessment/catalog.ts` |
+| Protection rules or the warning limit | `components/assessment/useProctor.ts` |
+| Which compiler service is used | `lib/server/codeRunner.ts`, `CODE_RUNNER_PROVIDER` |
 
 ---
 

@@ -1,332 +1,201 @@
 'use client';
 
-import { useState } from 'react';
-import { BriefcaseBusiness, Check, ChevronDown, Copy, FileText, RotateCcw, Sparkles } from 'lucide-react';
-import type { ResumeData } from '@/types/resume';
-import { callAi } from '@/utils/aiClient';
+import { useEffect, useState } from 'react';
+import { BriefcaseBusiness, FileText, Maximize, Mic, MicOff, RotateCcw, Settings2, Volume2 } from 'lucide-react';
+import { clearSnapshot, enterFullscreen, exitFullscreen, loadSnapshot, loadAttempts, type AttemptSummary } from '@/lib/assessment/session';
 import { hasResumeContent } from '@/utils/resumeContent';
 import { Button } from '@/components/ui/Button';
-import { Checkbox, Field, SelectField, TextField, Textarea } from '@/components/ui/Field';
-import { Alert, Badge, Card, PageHeader, Skeleton } from '@/components/ui/Primitives';
-import { toast } from '@/components/ui/Toast';
+import { SelectField, TextField } from '@/components/ui/Field';
+import { Alert, Card, PageHeader, Skeleton, formatRelativeTime } from '@/components/ui/Primitives';
 import { useToolResume } from '@/components/tools/useToolResume';
 import { ResumeSourcePicker, type ResumeSource } from '@/components/tools/ResumeSourcePicker';
 import { JobDescriptionField, MIN_JOB_DESCRIPTION_CHARS } from '@/components/tools/JobDescriptionField';
+import { INTERVIEW_SNAPSHOT_KEY, InterviewRoom, type InterviewSnapshot } from '@/components/interview/InterviewRoom';
+import { InterviewReport } from '@/components/interview/InterviewReport';
+import { MIC_PROBLEM_TEXT, isSpeechInputSupported, useInterviewerVoice, useSpeechInput } from '@/components/interview/useSpeech';
+import type { InterviewLevel, InterviewResult, InterviewRound, InterviewSetup } from '@/components/interview/types';
 
-type Category = 'technical' | 'coding' | 'project' | 'behavioral' | 'role';
-
-interface Question {
-  id: string;
-  category: Category;
-  question: string;
-  requirement: string;
-  evidence: 'shown' | 'partial' | 'gap' | null;
-  basedOn: string;
-  whyAsked: string;
-  answerPoints: string[];
-  code: { language: string; snippet: string; explanation: string } | null;
-}
-
-interface QuestionSet {
-  jobTitle: string;
-  roleInvolvesCoding: boolean;
-  questions: Question[];
-}
-
-// What the questions were prepared from, so feedback uses the same context
-// even if the inputs above are changed afterwards.
-interface PrepContext {
-  resumeData: ResumeData;
-  jobDescription: string;
-  targetRole: string;
-  wantedCoding: boolean;
-}
-
-interface Feedback {
-  ratings: { accuracy: number; clarity: number; completeness: number; communication: number };
-  strengths: string[];
-  improvements: string[];
-  betterAnswerOutline: string[];
-}
-
-const CATEGORIES: Array<{ value: Category; label: string; badge: string }> = [
-  { value: 'technical', label: 'Technical', badge: 'Technical' },
-  { value: 'coding', label: 'Coding (with sample code)', badge: 'Coding' },
-  { value: 'project', label: 'Project-based', badge: 'Project-based' },
-  { value: 'behavioral', label: 'Behavioral', badge: 'Behavioral' },
-  { value: 'role', label: 'Role-specific', badge: 'Role-specific' },
+const LANGUAGES = [
+  { value: 'en-IN', label: 'English (India)' },
+  { value: 'en-US', label: 'English (US)' },
+  { value: 'en-GB', label: 'English (UK)' },
 ];
 
-const EVIDENCE = {
-  shown: { label: 'On your resume', tone: 'success' },
-  partial: { label: 'Partly on your resume', tone: 'warning' },
-  gap: { label: 'Not on your resume', tone: 'error' },
-} as const;
-
-const RATING_LABELS = ['', 'Needs work', 'Fair', 'Good', 'Strong', 'Excellent'];
-
-function CodeBlock({ language, snippet }: { language: string; snippet: string }) {
-  const [copied, setCopied] = useState(false);
-
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(snippet);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 2000);
-    } catch {
-      toast('The code could not be copied. Select it and copy it instead.', { tone: 'error' });
-    }
-  };
+// Tries the real voice and microphone before the interview, so problems show up here.
+function DeviceCheck({ lang }: { lang: string }) {
+  const [heard, setHeard] = useState('');
+  const voice = useInterviewerVoice(lang);
+  const mic = useSpeechInput(lang, (text) => setHeard(text));
 
   return (
-    <div className="overflow-hidden rounded-lg border border-line bg-surface-2">
-      <div className="flex items-center justify-between gap-2 border-b border-line px-3 py-1">
-        <span className="text-label font-medium text-ink-2">{language}</span>
-        <Button size="sm" variant="ghost" onClick={() => void copy()} aria-label={`Copy the ${language} code`}>
-          {copied ? <Check className="h-4 w-4" aria-hidden="true" /> : <Copy className="h-4 w-4" aria-hidden="true" />}
-          {copied ? 'Copied' : 'Copy'}
+    <div className="grid gap-3 sm:grid-cols-2">
+      <div className="rounded-lg border border-line p-3">
+        <p className="text-small font-medium text-ink">Interviewer’s voice</p>
+        <Button
+          size="sm"
+          className="mt-2"
+          onClick={() => void voice.speak('Hello, I am Aria. I will be your interviewer today.')}
+          loading={voice.speaking}
+        >
+          {!voice.speaking && <Volume2 className="h-4 w-4" aria-hidden="true" />} Play a test
         </Button>
       </div>
-      <pre className="max-h-[28rem] overflow-auto p-3 text-small leading-5">
-        <code className="font-mono text-ink">{snippet}</code>
-      </pre>
+      <div className="rounded-lg border border-line p-3">
+        <p className="text-small font-medium text-ink">Your microphone</p>
+        {isSpeechInputSupported() ? (
+          <>
+            <Button
+              size="sm"
+              variant={mic.listening ? 'subtle' : 'secondary'}
+              className="mt-2"
+              onClick={() => (mic.listening ? mic.stop() : mic.start())}
+              aria-pressed={mic.listening}
+            >
+              {mic.listening ? <Mic className="h-4 w-4" aria-hidden="true" /> : <MicOff className="h-4 w-4" aria-hidden="true" />}
+              {mic.listening ? 'Listening: say something' : 'Test the microphone'}
+            </Button>
+            {(heard || mic.interim) && <p className="mt-2 text-small text-ink">Heard: “{mic.interim || heard}”</p>}
+            {mic.problem && <p className="mt-2 text-small text-error">{MIC_PROBLEM_TEXT[mic.problem]}</p>}
+          </>
+        ) : (
+          <p className="mt-1 text-small text-ink-2">This browser can’t turn speech into text. Use Chrome or Edge to speak, or type your answers.</p>
+        )}
+      </div>
     </div>
   );
 }
 
-function QuestionCard({ question, context }: { question: Question; context: PrepContext }) {
-  const [answer, setAnswer] = useState('');
-  const [feedback, setFeedback] = useState<Feedback | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const isCoding = question.category === 'coding';
-  const evidence = question.evidence ? EVIDENCE[question.evidence] : null;
-
-  const getFeedback = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      setFeedback(
-        await callAi<Feedback>('interview-feedback', {
-          resumeData: context.resumeData,
-          targetRole: context.targetRole,
-          jobDescription: context.jobDescription,
-          question: question.question,
-          category: question.category,
-          answer,
-        })
-      );
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Feedback could not be generated.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
+function RecentAttempts({ attempts }: { attempts: AttemptSummary[] }) {
+  if (attempts.length === 0) return null;
   return (
-    <Card className="p-5">
-      <div className="flex flex-wrap items-center gap-2">
-        <Badge tone="primary">{CATEGORIES.find((item) => item.value === question.category)?.badge ?? 'Question'}</Badge>
-        {evidence && <Badge tone={evidence.tone}>{evidence.label}</Badge>}
-        {question.requirement ? (
-          <span className="text-label text-ink-2">
-            Job requirement: <span className="font-medium text-ink">{question.requirement}</span>
-          </span>
-        ) : (
-          question.basedOn && <span className="text-label text-ink-2">Based on: {question.basedOn}</span>
-        )}
-      </div>
-      <h3 className="mt-2 whitespace-pre-line text-card font-semibold text-ink">{question.question}</h3>
-      {question.whyAsked && <p className="mt-1 text-small text-ink-2">Why it is asked: {question.whyAsked}</p>}
-
-      <Field label={isCoding ? 'Your code or approach' : 'Your answer'} className="mt-4">
-        {(control) => (
-          <Textarea
-            {...control}
-            rows={isCoding ? 10 : 5}
-            value={answer}
-            onChange={(event) => setAnswer(event.target.value)}
-            maxLength={5000}
-            spellCheck={!isCoding}
-            className={isCoding ? 'font-mono text-small' : ''}
-            placeholder={
-              isCoding
-                ? 'Write your code, then explain your approach and its time and space complexity…'
-                : 'Answer as you would in the interview…'
-            }
-          />
-        )}
-      </Field>
-      <div className="mt-3 flex flex-wrap gap-2">
-        <Button variant="primary" onClick={() => void getFeedback()} disabled={!answer.trim()} loading={loading}>
-          <Sparkles className="h-4 w-4" aria-hidden="true" /> Get feedback
-        </Button>
-        {(feedback || answer) && (
-          <Button
-            variant="secondary"
-            onClick={() => {
-              setAnswer('');
-              setFeedback(null);
-              setError(null);
-            }}
-          >
-            <RotateCcw className="h-4 w-4" aria-hidden="true" /> Try again
-          </Button>
-        )}
-      </div>
-      {error && <Alert tone="error" className="mt-3">{error}</Alert>}
-
-      {feedback && (
-        <div className="mt-5 space-y-4 border-t border-line pt-4" aria-live="polite">
-          <div className="grid gap-3 sm:grid-cols-2">
-            {(Object.entries(feedback.ratings) as Array<[keyof Feedback['ratings'], number]>).map(([key, value]) => (
-              <div key={key}>
-                <div className="flex justify-between text-small">
-                  <span className="capitalize text-ink">{key}</span>
-                  <span className="font-medium text-ink-2">
-                    {value}/5 · {RATING_LABELS[value]}
-                  </span>
-                </div>
-                <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-surface-2" aria-hidden="true">
-                  <div className="h-full rounded-full bg-primary" style={{ width: `${value * 20}%` }} />
-                </div>
-              </div>
-            ))}
-          </div>
-          {feedback.strengths.length > 0 && (
-            <div>
-              <p className="text-label font-medium text-green-700">What worked</p>
-              <ul className="mt-1 list-disc space-y-0.5 pl-5 text-small text-ink">
-                {feedback.strengths.map((item) => <li key={item}>{item}</li>)}
-              </ul>
-            </div>
-          )}
-          {feedback.improvements.length > 0 && (
-            <div>
-              <p className="text-label font-medium text-amber-800">To improve</p>
-              <ul className="mt-1 list-disc space-y-0.5 pl-5 text-small text-ink">
-                {feedback.improvements.map((item) => <li key={item}>{item}</li>)}
-              </ul>
-            </div>
-          )}
-          {feedback.betterAnswerOutline.length > 0 && (
-            <div>
-              <p className="text-label font-medium text-ink">A stronger answer could</p>
-              <ol className="mt-1 list-decimal space-y-0.5 pl-5 text-small text-ink">
-                {feedback.betterAnswerOutline.map((item) => <li key={item}>{item}</li>)}
-              </ol>
-            </div>
-          )}
-        </div>
-      )}
-
-      {(question.answerPoints.length > 0 || question.code) && (
-        <details className="group mt-4 rounded-lg border border-line">
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-2 rounded-lg px-4 py-2.5 text-small font-semibold text-primary [&::-webkit-details-marker]:hidden">
-            {question.code ? 'Show a sample answer and code' : 'Show a sample answer'}
-            <ChevronDown className="h-4 w-4 shrink-0 transition-transform group-open:rotate-180" aria-hidden="true" />
-          </summary>
-          <div className="space-y-3 border-t border-line px-4 py-3">
-            {question.answerPoints.length > 0 && (
-              <div>
-                <p className="text-label font-medium text-ink">A strong answer covers</p>
-                <ul className="mt-1 list-disc space-y-0.5 pl-5 text-small text-ink">
-                  {question.answerPoints.map((point) => <li key={point}>{point}</li>)}
-                </ul>
-              </div>
-            )}
-            {question.code && (
-              <>
-                <CodeBlock language={question.code.language} snippet={question.code.snippet} />
-                {question.code.explanation && (
-                  <p className="text-small text-ink">
-                    <span className="font-medium">Approach: </span>
-                    {question.code.explanation}
-                  </p>
-                )}
-              </>
-            )}
-            <p className="text-label text-ink-2">
-              Try answering first, then compare.
-              {question.code ? ' The sample code is written by AI: run and test it before you rely on it.' : ''}
-            </p>
-          </div>
-        </details>
-      )}
-    </Card>
+    <section className="mt-6" aria-labelledby="recent-interviews">
+      <h2 id="recent-interviews" className="text-card font-semibold text-ink">Recent interviews</h2>
+      <ul className="mt-2 divide-y divide-line rounded-xl border border-line bg-surface">
+        {attempts.slice(0, 5).map((attempt) => (
+          <li key={attempt.id} className="flex items-center justify-between gap-3 px-4 py-2.5 text-small">
+            <span className="min-w-0 truncate text-ink">{attempt.title}</span>
+            <span className="shrink-0 text-ink-2">
+              <span className="font-semibold text-ink">{attempt.percent}/100</span> · {formatRelativeTime(attempt.at)}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
-// PRD §18 — practice questions from your resume and, optionally, a job
-// description, with feedback. Coding questions include sample code.
+// PRD §18, extended: a spoken, full-screen interview with an AI interviewer,
+// built from the candidate's resume and, optionally, the job description.
 export function InterviewTool() {
   const { ready, resumes, current, select } = useToolResume();
   const [source, setSource] = useState<ResumeSource>({ kind: 'saved' });
   const [jobDescription, setJobDescription] = useState('');
   const [targetRole, setTargetRole] = useState<string | null>(null);
-  const [categories, setCategories] = useState<Set<Category>>(new Set(CATEGORIES.map((item) => item.value)));
+  const [round, setRound] = useState<InterviewRound>('mixed');
+  const [level, setLevel] = useState<InterviewLevel>('standard');
   const [count, setCount] = useState('6');
-  const [result, setResult] = useState<{ set: QuestionSet; context: PrepContext } | null>(null);
+  const [lang, setLang] = useState('en-IN');
   const [parsing, setParsing] = useState(false);
   const [readingJob, setReadingJob] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [room, setRoom] = useState<{ setup: InterviewSetup; resume: InterviewSnapshot | null; fullscreen: boolean } | null>(null);
+  const [result, setResult] = useState<InterviewResult | null>(null);
+  const [saved, setSaved] = useState<InterviewSnapshot | null>(null);
+  const [attempts, setAttempts] = useState<AttemptSummary[]>([]);
 
   const resumeData = source.kind === 'upload' ? source.data : current?.data ?? null;
   const jdLength = jobDescription.trim().length;
   const hasJob = jdLength > 0;
-  // With a job description, the role comes from it unless the user types one.
   const role = targetRole ?? (hasJob ? '' : resumeData?.personalInfo.targetRole ?? '');
   const hasContent = hasResumeContent(resumeData);
-  const canGenerate =
-    hasContent && (!hasJob || jdLength >= MIN_JOB_DESCRIPTION_CHARS) && categories.size > 0 && !parsing && !readingJob;
+  const canStart = hasContent && (!hasJob || jdLength >= MIN_JOB_DESCRIPTION_CHARS) && !parsing && !readingJob;
 
-  const clearResults = () => {
+  useEffect(() => {
+    void (async () => {
+      const list = await loadAttempts();
+      setAttempts(list.filter((attempt) => attempt.kind === 'interview'));
+      setSaved(loadSnapshot<InterviewSnapshot>(INTERVIEW_SNAPSHOT_KEY));
+    })();
+  }, [result]);
+
+  const start = async () => {
+    if (!resumeData || !canStart) return;
+    // Full screen has to be requested inside this click.
+    const fullscreen = await enterFullscreen();
+    clearSnapshot(INTERVIEW_SNAPSHOT_KEY);
     setResult(null);
-    setTargetRole(null);
+    setRoom({
+      fullscreen,
+      resume: null,
+      setup: { resumeData, jobDescription: jobDescription.trim(), targetRole: role.trim(), round, level, count: Number(count), lang },
+    });
   };
 
-  const generate = async () => {
-    if (!resumeData || !canGenerate) return;
-    const context: PrepContext = {
-      resumeData,
-      jobDescription: jobDescription.trim(),
-      targetRole: role.trim(),
-      wantedCoding: categories.has('coding'),
-    };
-    setLoading(true);
-    setError(null);
-    try {
-      const set = await callAi<QuestionSet>('interview-questions', {
-        resumeData,
-        jobDescription: context.jobDescription,
-        targetRole: context.targetRole,
-        categories: [...categories],
-        count: Number(count),
-      });
-      setResult({ set, context });
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Questions could not be prepared.');
-    } finally {
-      setLoading(false);
-    }
+  const resumeSaved = async () => {
+    if (!saved) return;
+    const fullscreen = await enterFullscreen();
+    setRoom({ fullscreen, resume: saved, setup: saved.setup });
+    setSaved(null);
   };
 
-  const questions = result?.set.questions ?? [];
-  const jobQuestions = questions.filter((question) => question.requirement).length;
-  const gaps = questions.filter((question) => question.evidence === 'gap').length;
+  const leaveRoom = () => {
+    void exitFullscreen();
+    clearSnapshot(INTERVIEW_SNAPSHOT_KEY);
+    setRoom(null);
+    setSaved(null);
+  };
+
+  if (result) {
+    return (
+      <InterviewReport
+        result={result}
+        onAgain={() => {
+          const { setup } = result;
+          setResult(null);
+          void enterFullscreen().then((fullscreen) => setRoom({ fullscreen, resume: null, setup }));
+        }}
+        onDone={() => setResult(null)}
+      />
+    );
+  }
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6">
       <PageHeader
-        title="Interview Preparation"
-        description="Practice questions based on your resume and, if you add one, the job description’s requirements. Coding questions come with sample code. Feedback helps you prepare; it cannot guarantee interview success."
+        title="AI Interview"
+        description="A real interview round, full screen, with an AI interviewer who talks to you. Add your resume and the job. Aria asks one question at a time, you answer out loud, and you get feedback after every answer."
       />
 
       {!ready ? (
-        <Skeleton className="mt-6 h-48" />
+        <Skeleton className="mt-6 h-64" />
       ) : (
         <>
+          {saved && (
+            <Alert
+              tone="info"
+              className="mt-6"
+              title="You have an interview in progress."
+              actions={
+                <div className="flex gap-2">
+                  <Button size="sm" variant="primary" onClick={() => void resumeSaved()}>Resume</Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      clearSnapshot(INTERVIEW_SNAPSHOT_KEY);
+                      setSaved(null);
+                    }}
+                  >
+                    Discard
+                  </Button>
+                </div>
+              }
+            >
+              {saved.turns.length} question{saved.turns.length === 1 ? '' : 's'} answered so far.
+            </Alert>
+          )}
+
           <div className="mt-6 grid gap-4 lg:grid-cols-2">
             <Card className="min-w-0 p-5">
               <h2 className="flex items-center gap-2 text-card font-semibold text-ink">
@@ -340,15 +209,15 @@ export function InterviewTool() {
                   source={source}
                   onSelectResume={(id) => {
                     select(id);
-                    clearResults();
+                    setTargetRole(null);
                   }}
                   onSourceChange={(next) => {
                     setSource(next);
-                    clearResults();
+                    setTargetRole(null);
                   }}
                   onError={setError}
                   onBusyChange={setParsing}
-                  uploadHint="Used only for this practice session. It is not saved as a resume."
+                  uploadHint="Used only for this interview. It is not saved as a resume."
                 />
               </div>
               {resumeData && !hasContent && !parsing && (
@@ -358,18 +227,17 @@ export function InterviewTool() {
 
             <Card className="min-w-0 p-5">
               <h2 className="flex items-center gap-2 text-card font-semibold text-ink">
-                <BriefcaseBusiness className="h-4 w-4 text-primary" aria-hidden="true" /> 2. The job{' '}
-                <span className="text-body font-normal text-ink-2">(optional)</span>
+                <BriefcaseBusiness className="h-4 w-4 text-primary" aria-hidden="true" /> 2. The job
               </h2>
               <JobDescriptionField
                 className="mt-4"
                 optional
-                rows={7}
+                rows={6}
                 value={jobDescription}
                 onChange={setJobDescription}
                 onError={setError}
                 onBusyChange={setReadingJob}
-                hint="Add the job posting to get questions on its requirements. Paste it, or upload a PDF or .txt file."
+                hint="Add the job posting and questions will test its requirements. Paste it, or upload a PDF or .txt file."
               />
               <TextField
                 className="mt-4"
@@ -383,84 +251,62 @@ export function InterviewTool() {
           </div>
 
           <Card className="mt-4 space-y-5 p-5">
-            <fieldset>
-              <legend className="mb-2 text-label font-medium text-ink">Question types</legend>
-              <div className="flex flex-wrap gap-x-5 gap-y-3">
-                {CATEGORIES.map((category) => (
-                  <Checkbox
-                    key={category.value}
-                    label={category.label}
-                    checked={categories.has(category.value)}
-                    onChange={() =>
-                      setCategories((previous) => {
-                        const next = new Set(previous);
-                        if (next.has(category.value)) next.delete(category.value);
-                        else next.add(category.value);
-                        return next;
-                      })
-                    }
-                  />
-                ))}
-              </div>
-              <p className="mt-2 text-label text-ink-2">Coding questions are only added when the role involves writing code.</p>
-            </fieldset>
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
-              <SelectField label="Number of questions" value={count} onChange={(event) => setCount(event.target.value)} className="sm:w-48">
-                {['4', '6', '8', '10'].map((value) => (
-                  <option key={value} value={value}>
-                    {value}
-                  </option>
-                ))}
+            <h2 className="flex items-center gap-2 text-card font-semibold text-ink">
+              <Settings2 className="h-4 w-4 text-primary" aria-hidden="true" /> 3. Interview settings
+            </h2>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <SelectField label="Round" value={round} onChange={(event) => setRound(event.target.value as InterviewRound)}>
+                <option value="mixed">Mixed (technical + HR)</option>
+                <option value="technical">Technical</option>
+                <option value="hr">HR &amp; behavioral</option>
               </SelectField>
-              <Button variant="primary" onClick={() => void generate()} loading={loading} disabled={!canGenerate}>
-                <Sparkles className="h-4 w-4" aria-hidden="true" />
-                {loading ? 'Preparing questions…' : result ? 'New questions' : 'Prepare questions'}
+              <SelectField label="Interviewer style" value={level} onChange={(event) => setLevel(event.target.value as InterviewLevel)}>
+                <option value="friendly">Friendly</option>
+                <option value="standard">Standard</option>
+                <option value="tough">Tough</option>
+              </SelectField>
+              <SelectField label="Questions" value={count} onChange={(event) => setCount(event.target.value)}>
+                {['4', '6', '8', '10'].map((value) => <option key={value} value={value}>{value}</option>)}
+              </SelectField>
+              <SelectField label="Speech language" value={lang} onChange={(event) => setLang(event.target.value)}>
+                {LANGUAGES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+              </SelectField>
+            </div>
+            <DeviceCheck lang={lang} />
+            <div className="flex flex-wrap items-center gap-3">
+              <Button variant="primary" size="lg" onClick={() => void start()} disabled={!canStart}>
+                <Maximize className="h-4 w-4" aria-hidden="true" /> Start interview
               </Button>
+              <p className="text-small text-ink-2">
+                {canStart ? 'Opens full screen. Your camera stays off unless you turn it on, and nothing is recorded.' : hasJob && jdLength < MIN_JOB_DESCRIPTION_CHARS ? 'The job description is too short.' : 'Choose or upload a resume to begin.'}
+              </p>
             </div>
           </Card>
 
           {error && <Alert tone="error" className="mt-4">{error}</Alert>}
-
-          {loading && (
-            <div className="mt-6 max-w-4xl space-y-3" aria-label="Preparing questions">
-              <Skeleton className="h-40" />
-              <Skeleton className="h-40" />
-            </div>
-          )}
-
-          {result && !loading && (
-            <section className="mt-8 max-w-4xl" aria-labelledby="questions-heading">
-              <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                <h2 id="questions-heading" className="text-heading font-semibold text-ink">
-                  {result.set.jobTitle ? `Questions for ${result.set.jobTitle}` : 'Your practice questions'}
-                </h2>
-                {result.context.jobDescription && (
-                  <p className="text-small text-ink-2">
-                    {jobQuestions} of {questions.length} test job requirements
-                    {gaps > 0 ? ` · ${gaps} not shown on your resume` : ''}
-                  </p>
-                )}
-              </div>
-              {result.context.wantedCoding && !result.set.roleInvolvesCoding && (
-                <Alert tone="info" className="mt-3">
-                  No coding questions: this role does not involve writing code, so other question types were used instead.
-                </Alert>
-              )}
-              {gaps > 0 && (
-                <p className="mt-2 text-small text-ink-2">
-                  Questions marked “Not on your resume” test requirements your resume does not show. Answer them honestly: say what you know, and how you would learn the rest.
-                </p>
-              )}
-              <ul className="mt-4 space-y-4">
-                {questions.map((question) => (
-                  <li key={`${question.id}-${question.question}`}>
-                    <QuestionCard question={question} context={result.context} />
-                  </li>
-                ))}
-              </ul>
-            </section>
+          <RecentAttempts attempts={attempts} />
+          {attempts.length > 0 && (
+            <p className="mt-2 flex items-center gap-1.5 text-label text-ink-2">
+              <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" /> Only summaries are kept, on this device. Answers aren’t saved.
+            </p>
           )}
         </>
+      )}
+
+      {room && (
+        <InterviewRoom
+          key={room.resume ? 'resumed' : 'new'}
+          setup={room.setup}
+          resume={room.resume}
+          wantsFullscreen={room.fullscreen}
+          onExit={leaveRoom}
+          onFinish={(finished) => {
+            void exitFullscreen();
+            clearSnapshot(INTERVIEW_SNAPSHOT_KEY);
+            setRoom(null);
+            setResult(finished);
+          }}
+        />
       )}
     </div>
   );

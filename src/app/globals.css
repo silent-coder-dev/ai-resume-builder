@@ -208,3 +208,127 @@ html.reduce-motion *::after {
     box-decoration-break: clone;
   }
 }
+
+/* =========================================================
+   AI INTERVIEWER (the full-screen interview room)
+   ========================================================= */
+.ai-interviewer .ai-body {
+  animation: ai-breathe 4.5s ease-in-out infinite;
+  transform-origin: 200px 460px;
+}
+.ai-interviewer .ai-head {
+  animation: ai-sway 7s ease-in-out infinite;
+  transform-origin: 200px 280px;
+}
+.ai-interviewer .ai-lid {
+  animation: ai-blink 5.2s linear infinite;
+  transform-box: fill-box;
+  transform-origin: center top;
+}
+.ai-interviewer .ai-gaze {
+  animation: ai-glance 9s ease-in-out infinite;
+  transition: transform 300ms ease;
+}
+.ai-interviewer .ai-brows {
+  transition: transform 300ms ease;
+}
+.ai-interviewer .ai-smile {
+  transition: opacity 120ms ease;
+}
+.ai-interviewer.ai-state-speaking .ai-smile {
+  opacity: 0;
+}
+/* Listening: small nods and steady eye contact. */
+.ai-interviewer.ai-state-listening .ai-head {
+  animation: ai-nod 3.4s ease-in-out infinite;
+}
+.ai-interviewer.ai-state-listening .ai-gaze {
+  animation: none;
+}
+/* Thinking: looks up and away, brows lift. */
+.ai-interviewer.ai-state-thinking .ai-gaze {
+  animation: none;
+  transform: translate(5px, -5px);
+}
+.ai-interviewer.ai-state-thinking .ai-brows {
+  transform: translateY(-4px);
+}
+.ai-halo {
+  position: absolute;
+  inset: 8% 12%;
+  border-radius: 9999px;
+  background: radial-gradient(circle, rgb(99 102 241 / 0.32), transparent 68%);
+  transition: opacity 300ms ease;
+  opacity: 0.5;
+}
+.ai-state-speaking .ai-halo {
+  animation: ai-pulse 1.5s ease-in-out infinite;
+  opacity: 1;
+}
+.ai-state-listening .ai-halo {
+  background: radial-gradient(circle, rgb(34 197 94 / 0.26), transparent 68%);
+  opacity: 1;
+}
+.ai-state-thinking .ai-halo {
+  background: radial-gradient(circle, rgb(245 158 11 / 0.2), transparent 68%);
+  opacity: 1;
+}
+.ai-wave span {
+  display: block;
+  width: 3px;
+  height: 100%;
+  border-radius: 9999px;
+  background: currentColor;
+  transform-origin: center;
+  animation: ai-wave 1s ease-in-out infinite;
+}
+.ai-wave span:nth-child(2) { animation-delay: -0.8s; }
+.ai-wave span:nth-child(3) { animation-delay: -0.55s; }
+.ai-wave span:nth-child(4) { animation-delay: -0.3s; }
+.ai-wave span:nth-child(5) { animation-delay: -0.1s; }
+
+@keyframes ai-breathe {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2.5px); }
+}
+@keyframes ai-sway {
+  0%, 100% { transform: rotate(-0.8deg) translateY(0); }
+  50% { transform: rotate(0.8deg) translateY(-2px); }
+}
+@keyframes ai-nod {
+  0%, 100% { transform: rotate(0) translateY(0); }
+  22% { transform: rotate(0.6deg) translateY(3px); }
+  44% { transform: rotate(0) translateY(0); }
+}
+@keyframes ai-blink {
+  0%, 95%, 100% { transform: scaleY(0); }
+  97%, 98% { transform: scaleY(1); }
+}
+@keyframes ai-glance {
+  0%, 34%, 100% { transform: translate(0, 0); }
+  38%, 52% { transform: translate(-3px, 0.5px); }
+  56%, 78% { transform: translate(0, 0); }
+  82%, 92% { transform: translate(3px, -0.5px); }
+}
+@keyframes ai-pulse {
+  0%, 100% { transform: scale(0.96); }
+  50% { transform: scale(1.06); }
+}
+@keyframes ai-wave {
+  0%, 100% { transform: scaleY(0.3); }
+  50% { transform: scaleY(1); }
+}
+
+/* =========================================================
+   PROTECTED TEST
+   ========================================================= */
+.exam-locked {
+  -webkit-user-select: none;
+  user-select: none;
+}
+.exam-locked textarea,
+.exam-locked input,
+.exam-locked .cm-editor {
+  -webkit-user-select: text;
+  user-select: text;
+}

@@ -59,7 +59,8 @@ All documents are in the [`doc/`](./doc) folder, written in simple English.
 | **Resume Analyzer** | Analyze a saved resume **or upload a PDF**. An explainable readiness score with issues, severity, why it matters, how to fix it, and a "Fix" button. Optional AI review for grammar, clarity, and role relevance. |
 | **Job Matcher** | Compare a saved or uploaded resume with a job description (paste it, or upload a PDF or .txt): evidence for each requirement, missing skills, keyword gaps, and project alignment. Create a **separate tailored version** — the original is never changed. |
 | **GitHub Projects** | Turn public repositories into project entries written only from the README, languages, and topics. |
-| **Interview Prep** | Use a saved or uploaded resume, and optionally a job description. Questions test the **job's requirements** and show which ones your resume covers. **Coding questions come with sample code**, hidden until you ask, plus feedback on your answer. |
+| **AI Interview** | A real interview round, full screen, with an animated AI interviewer who talks to you. Add your resume and (optionally) the job description. Aria asks one question at a time, you answer out loud or by typing, and after every answer you get scores, what worked, what to improve, and **"You could say it like this"**. Ends with a full report. |
+| **Assessment Center** | Test yourself in a **protected, full-screen environment**. **Coding round** with a compiler, public and hidden test cases (Java, Python, C, C++, C#). **SQL round** with a real database and hidden data. **MCQs** for Java & OOP, Python, DSA, DBMS, OS, networks, aptitude, **government exams** (SSC, Bank, Railways, UPSC, State PSC, Defence), and other fields. Choose topics and difficulty; questions are new every time. |
 | **Templates & PDF** | 11 ATS-friendly A4 templates, 7 accent colors, and a clean PDF with real text, clickable links, and correct margins on every page. |
 
 ---
@@ -87,6 +88,8 @@ All documents are in the [`doc/`](./doc) folder, written in simple English.
 | AI | Google Gemini (default) or OpenRouter, called only from the server |
 | GitHub | GitHub REST API (public repositories only) |
 | PDF | Browser print engine with A4 rules |
+| Interview | Browser speech synthesis and recognition, animated SVG interviewer |
+| Assessments | CodeMirror editor, SQLite (sql.js) sandbox, pluggable code runner |
 | Tests | Vitest + fake-indexeddb (unit), Playwright (end-to-end) |
 | Hosting | Vercel |
 
@@ -121,6 +124,9 @@ AI_SYNC_TOKEN_SECRET=any-long-random-text
 # OPENROUTER_MODEL_JOB_MATCH=nvidia/nemotron-3-ultra-550b-a55b:free
 # OPENROUTER_MODEL_INTERVIEW=another/model:free
 
+# Optional: the compiler for the coding round (see the table below)
+# CODE_RUNNER_PROVIDER=wandbox
+
 # Optional
 # AI_RATE_LIMIT_PER_MINUTE=10
 # AI_RATE_LIMIT_PER_DAY=150
@@ -133,10 +139,13 @@ AI_SYNC_TOKEN_SECRET=any-long-random-text
 | `GEMINI_API_KEY` | For Gemini | Google AI Studio key |
 | `OPENROUTER_API_KEY` | For OpenRouter | OpenRouter key |
 | `OPENROUTER_MODEL` / `OPENROUTER_FALLBACK_MODELS` | No | OpenRouter main and backup models |
-| `OPENROUTER_MODEL_ANALYZER` / `OPENROUTER_MODEL_JOB_MATCH` / `OPENROUTER_MODEL_INTERVIEW` | No | A separate OpenRouter model for the Resume Analyzer's AI review, the Job Matcher, and Interview Prep. If that model fails or gives an unusable answer, the main model answers instead. |
+| `OPENROUTER_MODEL_ANALYZER` / `OPENROUTER_MODEL_JOB_MATCH` / `OPENROUTER_MODEL_INTERVIEW` | No | A separate OpenRouter model for the Resume Analyzer's AI review, the Job Matcher, and the AI Interview. If that model fails or gives an unusable answer, the main model answers instead. |
 | `AI_SYNC_TOKEN_SECRET` | Recommended | Signs the job-tailoring permission token |
 | `AI_RATE_LIMIT_PER_MINUTE` / `AI_RATE_LIMIT_PER_DAY` | No | Fair-use AI limits per visitor (defaults 10 and 150) |
 | `GITHUB_TOKEN` | No | Raises GitHub API limits for the GitHub Projects tool |
+| `OPENROUTER_MODEL_ASSESSMENT` | No | The one model the Assessment Center uses, with **no fallback** (default `dots-studio/dots-3-note-preview:free`). If it's busy, the candidate sees an error and can try again. |
+| `CODE_RUNNER_PROVIDER` | For the coding round | `piston` (your own server, set `CODE_RUNNER_URL`) or `wandbox` (public service, no key). Without it the coding round says it isn't set up; SQL and MCQ tests still work. |
+| `CODE_RUNNER_URL` | With `piston` | The address of your Piston server |
 | `NEXT_PUBLIC_SITE_URL` | No | Your site URL, sent to OpenRouter as the referrer |
 
 Keep `.env.local` private. On Vercel, add the same variables in **Project Settings → Environment Variables** and redeploy.
@@ -162,8 +171,8 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ## 🧪 Testing
 
-- **Unit tests** (`tests/unit`, 33 tests): the storage service, autosave, undo/redo, conflicts between tabs, version history, backups, recovery of unsaved edits, the analyzer, data cleanup, and rate limits.
-- **End-to-end tests** (`tests/e2e`, 18 tests): every data-safety scenario in the PRD (refresh, Back, new-resume dialog, continue, create, cancel, duplicate, delete, cleared storage), AI approval, templates and PDF, keyboard use, phone layouts, and the upload flows in the Analyzer, Job Matcher, and Interview Prep. AI calls are mocked, so the tests are free and repeatable.
+- **Unit tests** (`tests/unit`, 62 tests): the storage service, autosave, undo/redo, conflicts between tabs, version history, backups, recovery of unsaved edits, the analyzer, data cleanup, rate limits, sealed answer keys, the SQL sandbox, and test grading.
+- **End-to-end tests** (`tests/e2e`, 24 tests): every data-safety scenario in the PRD (refresh, Back, new-resume dialog, continue, create, cancel, duplicate, delete, cleared storage), AI approval, templates and PDF, keyboard use, phone layouts, the upload flows, the full AI interview, and protected tests (warnings, auto-submit, resume after reload, coding and SQL rounds). AI calls are mocked, so the tests are free and repeatable.
 
 On Windows the end-to-end tests use the installed Microsoft Edge. Elsewhere, run `npx playwright install chromium` once.
 
@@ -181,23 +190,28 @@ src/
 │   │   ├── analyzer/            # Resume Analyzer
 │   │   ├── job-match/           # Job Matcher
 │   │   ├── github/              # GitHub Projects
-│   │   ├── interview/           # Interview Prep
+│   │   ├── interview/           # AI Interview
+│   │   ├── assessment/          # Assessment Center
 │   │   ├── settings/            # Settings
 │   │   └── privacy/             # Privacy & Data
 │   └── api/
 │       ├── ai/route.ts          # All AI actions (server only)
+│       ├── assessment/route.ts  # Tests, the compilers, and grading
 │       └── github/route.ts      # Public GitHub repository data
 ├── components/
 │   ├── home/                    # Home page sections
 │   ├── shell/                   # Sidebar, banners, autosave lifecycle
 │   ├── workspace/               # Builder: toolbar, sections, editors, AI tools
-│   ├── tools/                   # Analyzer, matcher, GitHub, interview, resumes, settings, privacy
+│   ├── interview/               # The AI interviewer, interview room, and report
+│   ├── assessment/              # Protected tests: MCQ, coding, SQL, results
+│   ├── tools/                   # Analyzer, matcher, GitHub, interview setup, resumes, settings, privacy
 │   ├── preview/                 # 11 resume templates and the A4 preview
 │   └── ui/                      # Buttons, fields, dialogs, menus, toasts
 ├── lib/
 │   ├── storage/                 # IndexedDB storage service, backups, recovery
 │   ├── resume/                  # Resume record, sections, analyzer, validation, samples
-│   ├── server/rateLimit.ts      # AI and GitHub rate limits
+│   ├── assessment/              # Test catalog, languages, session helpers
+│   ├── server/                  # AI provider, rate limits, sealing, SQL sandbox, code runner, grading
 │   └── entitlements.ts          # Feature policies (all free at launch)
 ├── store/                       # Workspace store and preferences
 ├── types/                       # Resume types and example resumes

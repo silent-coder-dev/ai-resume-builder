@@ -2,7 +2,7 @@ import { Suspense } from 'react';
 import type { Metadata } from 'next';
 import { InterviewTool } from '@/components/tools/InterviewTool';
 
-export const metadata: Metadata = { title: 'Interview Preparation | AI Resume Studio' };
+export const metadata: Metadata = { title: 'AI Interview | AI Resume Studio' };
 
 export default function InterviewPage() {
   return (

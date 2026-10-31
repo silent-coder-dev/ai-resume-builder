@@ -3,7 +3,6 @@ import { expect, resetStorage, test } from './helpers';
 
 // AI calls are mocked: these tests check the pages, not the AI provider.
 const FAKE_PDF = { name: 'resume.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4\n% test file\n') };
-const JOB_PDF = { name: 'job.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4\n% job posting\n') };
 
 const JOB_TEXT =
   'Junior Backend Developer at Example Corp. You will build REST APIs with Java and Spring Boot, write SQL queries, ' +
@@ -67,113 +66,6 @@ test('Analyzer: analyze an uploaded PDF, then save it to fix issues', async ({ p
   // It is now a normal saved resume.
   await page.goto('/resumes');
   await expect(page.getByText('Backend Developer Resume').first()).toBeVisible();
-});
-
-test('Interview prep: uploaded resume + job description PDF, with coding questions and sample code', async ({ page, context, consoleErrors }) => {
-  void consoleErrors;
-  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
-  const calls = await mockAi(page, {
-    'parse-resume-pdf': () => PARSED_RESUME,
-    'read-job-pdf': () => ({ text: JOB_TEXT, jobTitle: 'Junior Backend Developer' }),
-    'interview-questions': () => ({
-      jobTitle: 'Junior Backend Developer',
-      roleInvolvesCoding: true,
-      questions: [
-        {
-          id: 'q1',
-          category: 'coding',
-          question: 'Write a method that returns the first non-repeating character in a string.',
-          requirement: 'Java',
-          evidence: 'shown',
-          basedOn: 'Job: Java',
-          whyAsked: 'Checks core Java and problem solving.',
-          answerPoints: ['Count characters in one pass', 'Return the first with count 1'],
-          code: {
-            language: 'Java',
-            snippet: 'static Character firstUnique(String s) {\n  Map<Character, Integer> counts = new LinkedHashMap<>();\n  for (char c : s.toCharArray()) counts.merge(c, 1, Integer::sum);\n  for (var entry : counts.entrySet()) if (entry.getValue() == 1) return entry.getKey();\n  return null;\n}',
-            explanation: 'One pass to count, one pass to find. O(n) time, O(k) space.',
-          },
-        },
-        {
-          id: 'q2',
-          category: 'technical',
-          question: 'How would you run a Spring Boot service in Docker?',
-          requirement: 'Docker',
-          evidence: 'gap',
-          basedOn: 'Job: Docker',
-          whyAsked: 'Docker is preferred for this role.',
-          answerPoints: ['Explain what you know about images and containers'],
-          code: null,
-        },
-      ],
-    }),
-    'interview-feedback': () => ({
-      ratings: { accuracy: 4, clarity: 4, completeness: 3, communication: 4 },
-      strengths: ['Correct use of a LinkedHashMap.'],
-      improvements: ['State the time complexity.'],
-      betterAnswerOutline: ['Explain the approach', 'Write the code', 'State the complexity'],
-    }),
-  });
-
-  await page.goto('/interview');
-  await page.getByLabel('Resume PDF').setInputFiles(FAKE_PDF);
-  await expect(page.getByRole('button', { name: 'resume.pdf' })).toBeVisible();
-
-  await page.getByLabel('Upload the job description as a PDF or text file').setInputFiles(JOB_PDF);
-  await expect(page.getByLabel(/^Job description/)).toHaveValue(JOB_TEXT);
-
-  await page.getByRole('button', { name: 'Prepare questions' }).click();
-  await expect(page.getByRole('heading', { name: 'Questions for Junior Backend Developer' })).toBeVisible();
-  await expect(page.getByText('2 of 2 test job requirements · 1 not shown on your resume')).toBeVisible();
-
-  const request = calls.find((call) => call.action === 'interview-questions');
-  expect(request?.payload.jobDescription).toBe(JOB_TEXT);
-  expect(request?.payload.categories).toContain('coding');
-  expect((request?.payload.resumeData as { personalInfo: { fullName: string } }).personalInfo.fullName).toBe('Riya Sen');
-
-  const coding = page.getByRole('listitem').filter({ hasText: 'first non-repeating character' });
-  await expect(coding.getByText('Coding', { exact: true })).toBeVisible();
-  await expect(coding.getByText('On your resume')).toBeVisible();
-  await expect(page.getByRole('listitem').filter({ hasText: 'Spring Boot service in Docker' }).getByText('Not on your resume')).toBeVisible();
-
-  // The sample code stays hidden until asked for, so the candidate can try first.
-  await expect(coding.getByText('LinkedHashMap')).toBeHidden();
-  await coding.getByText('Show a sample answer and code').click();
-  await expect(coding.getByText(/counts\.merge/)).toBeVisible();
-  await expect(coding.getByText(/O\(n\) time/)).toBeVisible();
-  await coding.getByRole('button', { name: 'Copy the Java code' }).click();
-  await expect(coding.getByRole('button', { name: 'Copy the Java code' })).toHaveText(/Copied/);
-
-  await coding.getByLabel('Your code or approach').fill('Use a LinkedHashMap to count characters, then return the first with count 1.');
-  await coding.getByRole('button', { name: 'Get feedback' }).click();
-  await expect(coding.getByText('Correct use of a LinkedHashMap.')).toBeVisible();
-  const feedback = calls.find((call) => call.action === 'interview-feedback');
-  expect(feedback?.payload).toMatchObject({ category: 'coding', jobDescription: JOB_TEXT });
-
-  // The code block scrolls inside its box; the page never scrolls sideways on a phone.
-  await page.setViewportSize({ width: 360, height: 800 });
-  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
-  expect(overflow).toBeLessThanOrEqual(0);
-});
-
-test('Interview prep: a role without coding says so instead of inventing code', async ({ page, consoleErrors }) => {
-  void consoleErrors;
-  await mockAi(page, {
-    'parse-resume-pdf': () => PARSED_RESUME,
-    'interview-questions': () => ({
-      jobTitle: '',
-      roleInvolvesCoding: false,
-      questions: [
-        { id: 'q1', category: 'behavioral', question: 'Tell me about a deadline you missed.', requirement: '', evidence: null, basedOn: 'Target role', whyAsked: '', answerPoints: [], code: null },
-      ],
-    }),
-  });
-  await page.goto('/interview');
-  await page.getByLabel('Resume PDF').setInputFiles(FAKE_PDF);
-  await expect(page.getByRole('button', { name: 'resume.pdf' })).toBeVisible();
-  await page.getByRole('button', { name: 'Prepare questions' }).click();
-  await expect(page.getByText(/No coding questions: this role does not involve writing code/)).toBeVisible();
-  await expect(page.getByText('Show a sample answer')).toHaveCount(0);
 });
 
 test('Job matcher: uploaded resume and a .txt job description reach the match', async ({ page, consoleErrors }) => {

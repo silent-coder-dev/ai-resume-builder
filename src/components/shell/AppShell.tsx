@@ -4,6 +4,7 @@ import React, { useState, useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
+  ClipboardCheck,
   FilePenLine,
   Files,
   FolderGit2,
@@ -28,7 +29,8 @@ const PRIMARY_NAV = [
   { href: '/analyzer', label: 'Resume Analyzer', icon: Gauge },
   { href: '/job-match', label: 'Job Matcher', icon: Target },
   { href: '/github', label: 'GitHub Projects', icon: FolderGit2 },
-  { href: '/interview', label: 'Interview Prep', icon: MessagesSquare },
+  { href: '/interview', label: 'AI Interview', icon: MessagesSquare },
+  { href: '/assessment', label: 'Assessment Center', icon: ClipboardCheck },
 ];
 
 const SECONDARY_NAV = [

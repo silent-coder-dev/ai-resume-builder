@@ -9,7 +9,7 @@ const noHorizontalScroll = () => document.documentElement.scrollWidth <= window.
 
 test('Mobile: every page fits the screen without sideways scrolling', async ({ page, consoleErrors }) => {
   void consoleErrors;
-  for (const path of ['/', '/resumes', '/analyzer', '/job-match', '/github', '/interview', '/settings', '/privacy']) {
+  for (const path of ['/', '/resumes', '/analyzer', '/job-match', '/github', '/interview', '/assessment', '/settings', '/privacy']) {
     await page.goto(path);
     await page.waitForLoadState('networkidle');
     expect(await page.evaluate(noHorizontalScroll), `${path} has no horizontal overflow`).toBe(true);

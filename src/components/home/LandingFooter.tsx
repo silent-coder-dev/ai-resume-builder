@@ -16,7 +16,8 @@ const GROUPS = [
       { label: 'Resume Analyzer', href: '/analyzer' },
       { label: 'Job Matcher', href: '/job-match' },
       { label: 'GitHub Projects', href: '/github' },
-      { label: 'Interview Prep', href: '/interview' },
+      { label: 'AI Interview', href: '/interview' },
+      { label: 'Assessment Center', href: '/assessment' },
     ],
   },
   {

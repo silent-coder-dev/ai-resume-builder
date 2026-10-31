@@ -6,19 +6,25 @@ const FEATURE_MODEL_ENV: Partial<Record<Feature, string>> = {
   aiAnalysis: 'OPENROUTER_MODEL_ANALYZER',
   jobMatch: 'OPENROUTER_MODEL_JOB_MATCH',
   interviewPrep: 'OPENROUTER_MODEL_INTERVIEW',
+  assessment: 'OPENROUTER_MODEL_ASSESSMENT',
 };
 
 export const DEFAULT_OPENROUTER_MODEL = 'google/gemini-2.5-flash';
+export const DEFAULT_ASSESSMENT_MODEL = 'dots-studio/dots-3-note-preview:free';
 
 type Env = Record<string, string | undefined>;
 
 const clean = (value: string | undefined) => value?.trim() ?? '';
 
+// The Assessment Center uses one model and never a backup: if that model is
+// busy, the candidate sees an error and can try again.
+export const usesBackupModels = (feature: Feature | null) => feature !== 'assessment';
+
 // The models to try, in order and without repeats: the tool's own model, then
 // the main model, then OPENROUTER_FALLBACK_MODELS. OpenRouter moves to the next
-// one when a model is busy, rate limited, or missing, so a tool never depends
-// on a single free model.
+// one when a model is busy, rate limited, or missing.
 export function openRouterModelsFor(feature: Feature | null, env: Env = process.env): string[] {
+  if (feature === 'assessment') return [clean(env.OPENROUTER_MODEL_ASSESSMENT) || DEFAULT_ASSESSMENT_MODEL];
   const main = clean(env.OPENROUTER_MODEL) || DEFAULT_OPENROUTER_MODEL;
   const envName = feature ? FEATURE_MODEL_ENV[feature] : undefined;
   const preferred = envName ? clean(env[envName]) : '';

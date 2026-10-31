@@ -8,14 +8,19 @@ export class AiLimitError extends Error {
   }
 }
 
-export async function callAi<T>(action: string, payload: unknown): Promise<T> {
+export const callAi = <T>(action: string, payload: unknown) => postAction<T>('/api/ai', action, payload);
+
+// The Assessment Center: tests, the compiler, and grading.
+export const callAssessment = <T>(action: string, payload: unknown) => postAction<T>('/api/assessment', action, payload);
+
+async function postAction<T>(url: string, action: string, payload: unknown): Promise<T> {
   if (typeof navigator !== 'undefined' && navigator.onLine === false) {
     throw new Error('You are offline. AI features need an internet connection; your resume is still saved on this device.');
   }
 
   let response: Response;
   try {
-    response = await fetch('/api/ai', {
+    response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action, payload }),

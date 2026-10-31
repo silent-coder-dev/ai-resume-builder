@@ -26,10 +26,11 @@ This page explains **every main decision** in the project: what we chose, how it
 15. [The Resume Analyzer](#15-the-resume-analyzer)
 16. [The Job Matcher and tailored copies](#16-the-job-matcher-and-tailored-copies)
 17. [GitHub Projects](#17-github-projects)
-18. [Interview Prep](#18-interview-prep)
-19. [Safety, privacy, and limits](#19-safety-privacy-and-limits)
-20. [Quality checks and tests](#20-quality-checks-and-tests)
-21. [Options we did not choose](#21-options-we-did-not-choose)
+18. [The AI Interview](#18-the-ai-interview)
+19. [The Assessment Center](#19-the-assessment-center)
+20. [Safety, privacy, and limits](#20-safety-privacy-and-limits)
+21. [Quality checks and tests](#21-quality-checks-and-tests)
+22. [Options we did not choose](#22-options-we-did-not-choose)
 
 ---
 
@@ -40,7 +41,7 @@ The website has **two parts**:
 | Part | Where it runs | What it does |
 |---|---|---|
 | **The app** (pages, editor, preview, PDF, storage) | In the user's browser | Everything the user sees and touches |
-| **Two server routes** (`/api/ai`, `/api/github`) | On the server (Vercel) | Talk to the AI provider and to GitHub. Keep secrets on the server. |
+| **Three server routes** (`/api/ai`, `/api/assessment`, `/api/github`) | On the server (Vercel) | Talk to the AI provider and to GitHub. Keep secrets on the server. |
 
 ```
  Browser (the app)                              Server
@@ -74,7 +75,8 @@ The website has **two parts**:
 | `/analyzer` | Resume Analyzer |
 | `/job-match` | Job Matcher |
 | `/github` | GitHub Projects |
-| `/interview` | Interview Prep |
+| `/interview` | AI Interview |
+| `/assessment` | Assessment Center |
 | `/settings` | Settings |
 | `/privacy` | Privacy & Data |
 
@@ -383,7 +385,7 @@ callAi('rewrite-text', { text, action: 'concise', context })
 
 | Action | Used by |
 |---|---|
-| `parse-resume-pdf` | Import PDF, and resume uploads in the Analyzer, Job Matcher, and Interview Prep |
+| `parse-resume-pdf` | Import PDF, and resume uploads in the Analyzer, Job Matcher, and AI Interview |
 | `read-job-pdf` | Job description uploaded as a PDF (copied word for word, never summarised) |
 | `rewrite-text` | AI writing assistant (7 modes) |
 | `generate-summary` | Summary writer |
@@ -392,7 +394,7 @@ callAi('rewrite-text', { text, action: 'concise', context })
 | `analyze-resume` | AI review in the Analyzer |
 | `match-job` / `tailor-resume` | Job Matcher |
 | `describe-project` | GitHub Projects |
-| `interview-questions` / `interview-feedback` | Interview Prep |
+| `interview-plan` / `interview-answer` / `interview-report` | The AI Interview |
 | `generate-cover-letter` | Kept in the route; not used by the app yet |
 
 ### Providers
@@ -408,9 +410,10 @@ To spread the load, three tools can use their own OpenRouter model (`src/lib/ser
 |---|---|
 | `OPENROUTER_MODEL_ANALYZER` | The Resume Analyzer's AI review (`analyze-resume`) |
 | `OPENROUTER_MODEL_JOB_MATCH` | The Job Matcher (`match-job`, `tailor-resume`) |
-| `OPENROUTER_MODEL_INTERVIEW` | Interview Prep (`interview-questions`, `interview-feedback`) |
+| `OPENROUTER_MODEL_INTERVIEW` | The AI Interview |
+| `OPENROUTER_MODEL_ASSESSMENT` | The Assessment Center. **This one model only, with no backup.** Default: `dots-studio/dots-3-note-preview:free`. |
 
-Everything else (writing help, PDF import, GitHub) uses `OPENROUTER_MODEL`. A tool's model is never the only option:
+Everything else (writing help, PDF import, GitHub) uses `OPENROUTER_MODEL`. Except for the Assessment Center, a tool's model is never the only option:
 
 1. Each request lists the tool's model first and the main model as a backup. OpenRouter switches by itself when the first model is busy, rate limited, or not allowed.
 2. If the tool's model answers but the answer is not usable JSON (or it takes longer than 25 seconds), the app asks the main model once more, within the 60-second limit.
@@ -533,35 +536,122 @@ The GitHub route validates names, handles "user not found", and explains GitHub'
 
 ---
 
-## 18. Interview Prep
+## 18. The AI Interview
 
-1. **Your resume:** a saved resume, or an uploaded PDF (used for this session only; not saved).
-2. **The job (optional):** paste a job description or upload it as a PDF or `.txt` file, and optionally a target role.
-3. **Question types:** Technical, **Coding (with sample code)**, Project-based, Behavioral, Role-specific; and how many (4–10).
-4. `interview-questions` prepares the questions.
+This is an interview round and nothing else: **talking, no coding**. Coding lives in the [Assessment Center](#19-the-assessment-center).
 
-**With a job description**, most questions test a specific **job requirement** (for example "REST APIs with Spring Boot"). Each technical, coding, project, and role question shows whether your resume covers it:
+### How it goes
 
-| Label | Meaning |
+1. **Setup** (`/interview`): a saved resume or an uploaded PDF, the job description (optional: paste, PDF, or `.txt`), the round (mixed, technical, or HR), the interviewer's style, the number of questions, and the speech language. A **device check** tests the voice and microphone first, so problems show up here and not in the middle.
+2. **Full screen**: the room opens over everything. Aria, the AI interviewer, greets the candidate by name.
+3. **One question at a time**: Aria speaks the question, and captions show every word. Then the microphone turns on by itself.
+4. **The candidate answers out loud**. Words appear in a box as they speak, and they can correct them. Typing also works.
+5. **Feedback after every answer**: four ratings (accuracy, clarity, completeness, communication), what worked, what to improve, and **"You could say it like this"**, which Aria can read aloud.
+6. **Follow-ups**: if an answer is vague, Aria may ask one follow-up, at most two in an interview.
+7. **Report**: an overall score, average ratings, a written summary, and every question with its feedback.
+
+### Keeping it honest
+
+- **"You could say it like this" uses only facts from the resume and the answer.** Where a real detail would help, it leaves a blank such as `[your result]` for the candidate to fill in. It never invents numbers.
+- Speech recognition makes small mistakes, so the AI is told not to mark those down.
+- With a job description, each question is labelled **On your resume**, **Partly on your resume**, or **Not on your resume**. Gaps are still asked, because a real interviewer would ask them.
+- The score is the average of the ratings, and a skipped question counts as zero. It's an estimate, not a hiring prediction.
+
+### How the pieces work
+
+| Piece | How |
 |---|---|
-| *On your resume* | Your resume clearly shows this requirement |
-| *Partly on your resume* | It shows something related |
-| *Not on your resume* | A gap. The question is still asked (a real interviewer would), with a tip on answering honestly. |
+| The interviewer | An SVG drawing with CSS animation: breathing, blinking, glances, nods. Nothing to download. |
+| Lip movement | The mouth moves only while the voice is really speaking. |
+| Her states | Speaking, Listening, Thinking, each with its own look. They follow the real state of the interview. |
+| Voice | The browser's speech synthesis, one sentence at a time, because long speech can stall in Chromium. |
+| Hearing | The browser's speech recognition (Chrome and Edge). It restarts by itself after silences. |
+| Camera | Optional and off by default. A small preview only; it's never recorded or sent. |
 
-Behavioral questions test soft skills and have no label. Without a job description, questions come from your resume and target role, as before.
+### When something fails
 
-**Coding questions and sample code:**
+- **No microphone or unsupported browser**: the candidate types instead.
+- **No voice or muted**: captions carry the interview at the same pace.
+- **AI fails during an answer**: the answer is kept, with **Try again** and **Continue without feedback**.
+- **Page reloads**: the interview resumes at the next question (saved for this tab only).
+- **Report summary fails**: the score and per-question feedback still show.
 
-- Coding questions are added **only when the role involves writing code** (software, data, testing, DevOps…). For other roles the page says so and uses the other question types instead. This is how "code only when it makes sense" is decided.
-- At most 3 coding questions, in the job's main programming language.
-- Each one has a **sample solution** (up to 50 lines, commented) and a short explanation with time and space complexity. A technical question may also get a short snippet when it really helps.
-- The sample answer and code are **hidden** behind *Show a sample answer and code*, so you try first. The code has a **Copy** button and a note to run and test it, because it is written by AI.
-
-**Feedback:** type an answer (coding questions get a code-style box). `interview-feedback` rates it from 1 to 5 on accuracy, clarity, completeness, and communication. For coding answers, accuracy means correct code including edge cases, and completeness includes stating the complexity. It also lists strengths and improvements and gives an outline of a better answer. The feedback uses the same resume and job description the questions came from, and must not assume experience you do not have.
+Only a short summary (title, score, date) is kept in history. Answers and transcripts are not saved.
 
 ---
 
-## 19. Safety, privacy, and limits
+## 19. The Assessment Center
+
+`/assessment` lets candidates test themselves. All of it uses one AI model, `OPENROUTER_MODEL_ASSESSMENT`, with no fallback: if that model is busy, the candidate sees an error and can try again. Everything is listed in one file, `src/lib/assessment/catalog.ts`, so adding a test is one new entry.
+
+| Category | Tests |
+|---|---|
+| Engineering & CS | **Coding Round**, **SQL Round**, Java & OOP, Python, C & C++, DSA, DBMS, OS, Networks, Web Development |
+| Placement Aptitude | Quantitative Aptitude, Logical Reasoning, Verbal Ability, Data Interpretation |
+| Government Exams | SSC CGL, SSC CHSL, Bank PO, Bank Clerk, RRB NTPC, UPSC Prelims, State PSC, Defence (with negative marking) |
+| Other Fields | Mechanical, Electrical & Electronics, Civil, Finance & Accounting, Management & Marketing |
+
+The candidate picks topics (or types their own), the difficulty, and the number of questions. Questions are written fresh for every attempt. Long tests are written in batches of up to 10 at the same time, because one large request is too slow for a free model. If a batch fails, the test still starts with the questions that worked.
+
+### The protected environment
+
+`useProctor.ts` and `ExamShell.tsx`:
+
+- The test runs **full screen**. If the candidate leaves, the test is **hidden** until they return.
+- **Leaving full screen, or switching to another tab or app, is a warning.** At **3 warnings the test submits itself**.
+- **Copy, paste from outside, right-click, and browser shortcuts are blocked.** Code copied inside the editor can still be pasted back.
+- The **timer can't be paused**, and the test submits itself when time runs out.
+- A **reload** can resume the test, but the timer keeps running and it counts as a warning.
+- A connected **second screen** is flagged before the test starts (in browsers that can detect it).
+- Results include an **integrity report**: every warning, with the time.
+
+**What this can't do:** a website can't see a phone, a second computer, or other people in the room, and it can't fully block screenshots. So the results page says clearly that this is **self-assessment and not a certificate**. Real proctoring would need a webcam review service.
+
+### Keeping answers secret, without a database
+
+If the browser received the answers, anyone could read them in developer tools. So answer keys and hidden tests are **sealed**: the server encrypts them with AES-256-GCM using a secret only it knows (`src/lib/server/seal.ts`). The browser only carries the sealed token back when the candidate submits. A changed token is rejected, and tokens expire after 6 hours.
+
+- MCQ **questions** reach the browser. **Answers and explanations** arrive only after submitting.
+- **Hidden tests report only a verdict** (Passed, Wrong answer, Time limit…), never their output or errors, because a program could simply print its input to reveal the test.
+- The token also holds the deadline, so the server can tell if a submission was late.
+
+### Not trusting the AI
+
+AI can be wrong, so its work is checked before a candidate sees it:
+
+| Check | How |
+|---|---|
+| MCQ shape | Exactly 4 different options and one valid answer; repeated or broken questions are dropped |
+| Answer position | Options are shuffled on the server, so the answer isn't always in the same place |
+| Coding tests | The AI writes a reference solution, and **expected outputs come from actually running it**. An input where it crashes is dropped. Too few tests left means the problem is rejected. |
+| SQL tests | The reference query really runs on the public and hidden data. If it fails or returns nothing, the AI gets the reason and one more try. |
+
+MCQ answers can't be checked this way, so the results page says they can contain mistakes.
+
+### The coding round
+
+The candidate gets the problem, a code editor (CodeMirror) with starter code, and a choice of **Java, Python, C, C++, and C#**. Each language keeps its own code.
+
+- **Run** checks the **public tests** and shows input, expected output, and the candidate's output.
+- **Submit code** also runs the **hidden tests**.
+- Programs read from standard input and print to standard output, as on most judges.
+- Trailing spaces and line endings never fail a candidate. If the compiler service fails, the test is marked **Not run**, not wrong.
+
+**The compiler:** a website host can't safely run other people's code, so it runs on an outside service (`src/lib/server/codeRunner.ts`), chosen with `CODE_RUNNER_PROVIDER`:
+
+| Setting | What it is | Trade-off |
+|---|---|---|
+| `piston` + `CODE_RUNNER_URL` | Your own [Piston](https://github.com/engineer-man/piston) server | Best for real use, but needs a small server with Docker |
+| `wandbox` | The public [Wandbox](https://wandbox.org) service | Free with no account or key. Candidates' code goes to a public community service with no guarantees, so the test rules tell them not to put private information in it. |
+| Not set | No compiler | The coding round says it isn't set up. SQL and MCQ tests still work. |
+
+### The SQL round
+
+The candidate sees the tables, the data, and the expected result, then writes one query. **Run** shows their result. **Submit query** also checks a **hidden data set**. This needs no outside service: queries run in **SQLite (sql.js) inside a worker thread on our own server** (`src/lib/server/sqlSandbox.ts`). The database exists only in that worker's memory, and a runaway query is stopped after 4 seconds. Column names don't matter, and row order only counts when the question asks for one.
+
+---
+
+## 20. Safety, privacy, and limits
 
 | Protection | How |
 |---|---|
@@ -580,25 +670,25 @@ Behavioral questions test soft skills and have no label. Without a job descripti
 
 ---
 
-## 20. Quality checks and tests
+## 21. Quality checks and tests
 
 Before any change is finished, all of these must pass:
 
 ```bash
 npx tsc --noEmit     # types
 npm run lint         # code style
-npm test             # 33 unit tests (Vitest + fake IndexedDB)
+npm test             # 62 unit tests (Vitest + fake IndexedDB)
 npm run build        # production build
-npm run test:e2e     # 18 browser tests (Playwright)
+npm run test:e2e     # 24 browser tests (Playwright)
 ```
 
-**Unit tests** cover the storage service, autosave, undo/redo, tab conflicts, version limits, backups, recovery, the analyzer, data cleanup, section order, link safety, and rate limits.
+**Unit tests** cover the storage service, autosave, undo/redo, tab conflicts, version limits, backups, recovery, the analyzer, data cleanup, section order, link safety, rate limits, sealed tokens, the SQL sandbox, and test grading.
 
-**End-to-end tests** run the real app in Microsoft Edge (desktop and phone sizes) and check every data-safety scenario in the PRD: refresh, Back, the new-resume dialog (continue, create, cancel), duplicate, delete, cleared storage, and old-draft migration. They also check AI approval (with a mocked AI), templates and PDF, keyboard use, dialogs, that phone pages never scroll sideways, and the upload flows: analyzing and saving an uploaded PDF, interview questions from an uploaded resume and job description (with sample code), and the job matcher with an uploaded resume. Any browser console error fails the test.
+**End-to-end tests** run the real app in Microsoft Edge (desktop and phone sizes) and check every data-safety scenario in the PRD: refresh, Back, the new-resume dialog (continue, create, cancel), duplicate, delete, cleared storage, and old-draft migration. They also check AI approval (with a mocked AI), templates and PDF, keyboard use, dialogs, that phone pages never scroll sideways, and the upload flows: analyzing and saving an uploaded PDF, interview questions from an uploaded resume and job description (with sample code), the job matcher with an uploaded resume, the full AI interview with a stand-in microphone, and protected tests (warnings, auto-submit, resuming after a reload, coding and SQL rounds). Any browser console error fails the test.
 
 ---
 
-## 21. Options we did not choose
+## 22. Options we did not choose
 
 | Option | Why not |
 |---|---|
@@ -606,6 +696,9 @@ npm run test:e2e     # 18 browser tests (Playwright)
 | Keep localStorage for resumes | Too small and unsafe for many resumes and versions |
 | A PDF image library | No real text for ATS, no clickable links |
 | Apply AI changes automatically | Breaks the "never invent" promise; users must stay in control |
+| Running candidates' code on our host | Unsafe, and most hosts can't do it. An outside compiler service is isolated from our site. |
+| A database for answer keys | Sealed tokens keep answers secret with no database and no accounts |
+| A video avatar service | Costly per minute, with a slow start. An animated SVG is free and instant, and it works everywhere. |
 | An AI-made score | Changes every time and cannot explain itself. The rule-based analyzer is stable and explainable. |
 | Heavy animation and glass effects | Slower on phones and distracting. The PRD asks for a calm, professional look (see [Design System](./03-DESIGN-SYSTEM.md)). |
 

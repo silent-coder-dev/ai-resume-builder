@@ -271,7 +271,22 @@ Every template uses the same sections and follows the resume's own section order
 
 ---
 
-## 13. The home page
+## 13. Full-screen rooms
+
+The AI Interview and the protected tests are the one place the app leaves its calm white style, on purpose. They should feel like an occasion, with nothing else on screen.
+
+| Screen | Look |
+|---|---|
+| **Interview room** | Dark (`slate-950`) with the interviewer on a soft blue stage, captions like a video call, and the conversation in a side panel |
+| **Interviewer states** | A soft halo shows the state: indigo while speaking, green while listening, amber while thinking. A dot and a text label say the same thing, so color is never the only signal. |
+| **Protected test** | A dark top bar with the shield, warnings, and timer. Questions stay on the normal light surface. The timer turns red in the last minute. |
+| **Code editor** | The One Dark theme, with the console below it |
+
+Full-screen layers hide the page behind them from keyboards and screen readers (`inert`). All interviewer animation stops under reduced motion.
+
+---
+
+## 14. The home page
 
 The home page follows **PRD §7**: calm, white, and focused on the real product.
 
